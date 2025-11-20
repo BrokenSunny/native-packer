@@ -185,7 +185,7 @@ local function parse_keymap(lhs, data, set)
 end
 
 function M.register(plugin)
-	local keys = plugin.keys
+	local keys = plugin.key
 	plugin.key_resets = {}
 
 	for lhs, data in pairs(keys) do

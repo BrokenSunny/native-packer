@@ -16,7 +16,7 @@ function M.normalize(data)
 		if type(ft) == "string" then
 			fts[#fts + 1] = ft
 		else
-			vim.notify("neo-packer: ft: string | string[]", vim.log.levels.ERROR)
+			vim.notify("native-packer: ft: string | string[]", vim.log.levels.ERROR)
 		end
 	end
 	data.ft = fts
