@@ -18,13 +18,11 @@ local KeymapOptsMap = {
 	remap = true,
 }
 
-function M.normalize(source)
-	local keys = source
-	if type(source) ~= "table" then
-		keys = {}
+function M.normalize(data)
+	local keys = data.key
+	if type(keys) ~= "table" then
+		data.key = {}
 	end
-
-	return keys
 end
 
 local function collect_filetype_keymap(filetype, callback)
