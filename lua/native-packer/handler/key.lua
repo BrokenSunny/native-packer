@@ -200,7 +200,7 @@ function M.register(plugin)
 			local _keymap_opts = vim.deepcopy(keymap_opts, true)
 			_keymap_opts.expr = true
 			pcall(vim.keymap.set, mode, lhs, function()
-				require("neo-packer.core").load(plugin)
+				require("native-packer.core").load(plugin)
 				vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Ignore>" .. lhs, true, true, true), "i", false)
 			end, _keymap_opts)
 		end)
@@ -209,7 +209,7 @@ end
 
 function M.filetype_load()
 	vim.api.nvim_create_autocmd("FileType", {
-		group = vim.api.nvim_create_augroup("neo-packer-keymap-filetype", {}),
+		group = vim.api.nvim_create_augroup("native-packer-keymap-filetype", {}),
 		pattern = vim.tbl_keys(M.filetypes),
 		callback = function()
 			local callbacks = M.filetypes[vim.bo.filetype] or {}
