@@ -28,22 +28,17 @@ end
 
 local function register(cmd, loader)
 	vim.api.nvim_create_user_command(cmd, function(event)
-		---@cast event vim.api.keyset.user_command
 		local command = {
 			cmd = cmd,
 			bang = event.bang or nil,
-			---@diagnostic disable-next-line: undefined-field
 			mods = event.smods,
-			---@diagnostic disable-next-line: undefined-field
 			args = event.fargs,
 			count = event.count >= 0 and event.range == 0 and event.count or nil,
 		}
 
 		if event.range == 1 then
-			---@diagnostic disable-next-line: undefined-field
 			command.range = { event.line1 }
 		elseif event.range == 2 then
-			---@diagnostic disable-next-line: undefined-field
 			command.range = { event.line1, event.line2 }
 		end
 
@@ -53,13 +48,11 @@ local function register(cmd, loader)
 		if not info then
 			return
 		end
+
 		command.nargs = info.nargs
-		---@diagnostic disable-next-line: undefined-field
 		if event.args and event.args ~= "" and info.nargs and info.nargs:find("[1?]") then
-			---@diagnostic disable-next-line: undefined-field
 			command.args = { event.args }
 		end
-
 		vim.cmd(command)
 	end, {
 		bang = true,

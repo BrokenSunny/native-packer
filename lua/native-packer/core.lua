@@ -83,6 +83,7 @@ local function create_spec(plugin_spec)
 		data.lazy = true
 		data.startup = nil
 	end
+
 	return spec
 end
 
@@ -169,6 +170,7 @@ end
 ---@param specs NativePacker.PluginSpec[]
 ---@return NativePacker.PluginSpec[]
 local function filter_repo_specs(specs)
+	-- Fix: Invalid 'data': Cannot convert given Lua table
 	return vim.iter(specs)
 		:filter(function(spec)
 			return not is_local_plugin(spec.data)
@@ -215,12 +217,12 @@ end
 
 function M.load(data)
 	load_depend(data)
+	Handler.clean(data)
 	vim.cmd.packadd(data.name)
 	if data.config and type(data.config) == "function" then
 		data.config()
 	end
 	data.loaded = true
-	Handler.clean(data)
 end
 
 local function packadd(data)
@@ -289,16 +291,21 @@ function M.add(source)
 	local skipped_packadd = create_skipped_packadd(specs)
 	local remaining_packadd = create_remaining_packadd(#repo_specs, specs)
 	on_pack_changed()
-	vim.pack.add(repo_specs, {
-		load = function(plug_data)
-			local data = plug_data.spec.data
-			data.path = plug_data.path
-			data.name = plug_data.spec.name
-			skipped_packadd(data)
-			packadd(data)
-			remaining_packadd(data)
-		end,
-	})
+	for _, spec in ipairs(repo_specs) do
+		local key = spec.data.key
+		spec.data.key = nil
+		vim.pack.add({ spec }, {
+			load = function(plug_data)
+				local data = plug_data.spec.data
+				data.path = plug_data.path
+				data.name = plug_data.spec.name
+				data.key = key
+				skipped_packadd(data)
+				packadd(data)
+				remaining_packadd(data)
+			end,
+		})
+	end
 end
 
 ---@param names string[]
