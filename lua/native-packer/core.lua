@@ -216,8 +216,11 @@ local function load_depend(data)
 end
 
 function M.load(data)
-	load_depend(data)
 	Handler.clean(data)
+	if data.loaded then
+		return
+	end
+	load_depend(data)
 	vim.cmd.packadd(data.name)
 	if data.config and type(data.config) == "function" then
 		data.config()

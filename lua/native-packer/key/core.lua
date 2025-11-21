@@ -1,7 +1,10 @@
 local M = {
 	keymaps = {},
 	filetypes = {},
-	exclude_filetypes = {},
+	exclude_filetypes = {
+		["blink-cmp-menu"] = {},
+		["fzf"] = {},
+	},
 	events = {},
 }
 
@@ -37,8 +40,8 @@ end
 local function collect_filetype_keymap(map, filetype, callback)
 	if type(filetype) == "string" then
 		map[filetype] = map[filetype] or {}
-		table.insert(map[filetype], function()
-			callback()
+		table.insert(map[filetype], function(buf)
+			callback(buf)
 		end)
 		return
 	end
@@ -123,11 +126,11 @@ function M.set_keymap(lhs, rhs, mode, opts, extra, set)
 	set = set or set_keymap
 	collect_keymap(lhs, rhs, mode, extra)
 	if extra.ft or extra.exclude_ft then
-		collect_filetype_keymap(M.filetypes, extra.ft, function()
-			set(mode, lhs, rhs, opts, extra)
+		collect_filetype_keymap(M.filetypes, extra.ft, function(buffer)
+			set(mode, lhs, rhs, vim.tbl_extend("force", opts, { buffer = buffer }), extra)
 		end)
-		collect_filetype_keymap(M.exclude_filetypes, extra.exclude_ft, function()
-			set(mode, lhs, rhs, opts, extra)
+		collect_filetype_keymap(M.exclude_filetypes, extra.exclude_ft, function(buffer)
+			set(mode, lhs, rhs, vim.tbl_extend("force", opts, { buffer = buffer }), extra)
 		end)
 		return
 	end
@@ -189,36 +192,28 @@ end
 
 function M.load_filetype()
 	if vim.tbl_count(M.filetypes) > 0 then
-		local filetypes = {}
-		for ft, _ in pairs(M.filetypes) do
-			if not M.exclude_filetypes[ft] then
-				table.insert(filetypes, ft)
-			end
-		end
 		vim.api.nvim_create_autocmd("FileType", {
 			group = vim.api.nvim_create_augroup("native-packer-keymap-filetype", {}),
-			pattern = filetypes,
-			callback = function()
+			pattern = vim.tbl_keys(M.filetypes),
+			callback = function(ev)
 				local callbacks = M.filetypes[vim.bo.filetype] or {}
 				for _, cb in ipairs(callbacks) do
-					cb()
+					cb(ev.buf)
 				end
 			end,
 		})
-	else
-		if vim.tbl_count(M.exclude_filetypes) == 0 then
-			return
-		end
+	end
+	if vim.tbl_count(M.exclude_filetypes) > 0 then
 		vim.api.nvim_create_autocmd("FileType", {
-			group = vim.api.nvim_create_augroup("native-packer-keymap-filetype", {}),
+			group = vim.api.nvim_create_augroup("native-packer-keymap-exclude-filetype", {}),
 			pattern = "*",
-			callback = function()
+			callback = function(ev)
 				if M.exclude_filetypes[vim.bo.filetype] then
 					return
 				end
-				for _, value in pairs(M.exclude_filetypes) do
-					for _, cb in ipairs(value) do
-						cb()
+				for _, callbacks in pairs(M.exclude_filetypes) do
+					for _, cb in ipairs(callbacks) do
+						cb(ev.buf)
 					end
 				end
 			end,

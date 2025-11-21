@@ -21,10 +21,11 @@ function M.register(plugin)
 			pcall(vim.keymap.set, mode, lhs, rhs, opts)
 		end
 		table.insert(plugin.key_resets, reset)
-		pcall(vim.keymap.set, mode, lhs, function()
+		local handle = function()
 			require("native-packer.core").load(plugin)
 			vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Ignore>" .. lhs, true, true, true), "i", false)
-		end, vim.tbl_extend("force", opts, { expr = true }))
+		end
+		pcall(vim.keymap.set, mode, lhs, handle, vim.tbl_extend("force", opts, { expr = true }))
 	end)
 end
 
@@ -32,7 +33,7 @@ function M.clean(plugin)
 	for _, callback in ipairs(plugin.key_resets or {}) do
 		callback()
 	end
-	plugin.key_resets = nil
+	plugin.key_resets = {}
 end
 
 return M
