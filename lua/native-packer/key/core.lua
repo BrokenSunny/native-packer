@@ -1,5 +1,6 @@
 local M = {
 	keymaps = {},
+	delete_keymaps = {},
 	filetypes = {},
 	exclude_filetypes = {
 		["blink-cmp-menu"] = {},
@@ -8,7 +9,7 @@ local M = {
 	events = {},
 }
 
-local KEYMAPOPTSMAP = {
+local KEYMAP_SET_OPTS = {
 	noremap = true,
 	nowait = true,
 	silent = true,
@@ -20,6 +21,10 @@ local KEYMAPOPTSMAP = {
 	replace_keycodes = true,
 	buffer = true,
 	remap = true,
+}
+
+local KEYMAP_DEL_OPTS = {
+	buffer = true,
 }
 
 local function collect_keymap(lhs, rhs, mode, extra)
@@ -74,14 +79,14 @@ local function get_opts(opts, parent_opts)
 			final_opts[key] = value
 		end
 	end
-	final_opts = vim.tbl_extend("force", parent_opts, final_opts)
+	final_opts = vim.tbl_extend("force", parent_opts or {}, final_opts)
 	return final_opts
 end
 
-local function get_keymap_opts(opts)
+local function get_keymap_opts(map, opts)
 	local keymap_opts = {}
 	for key, value in pairs(opts) do
-		if KEYMAPOPTSMAP[key] then
+		if map[key] then
 			keymap_opts[key] = value
 		end
 	end
@@ -155,7 +160,7 @@ end
 ---@param opts NativePacker.KeySpec.Options
 function M.set_mode_keymap(lhs, rhs, mode, opts, set)
 	if type(mode) == "string" then
-		M.set_keymap(lhs, rhs, mode, get_keymap_opts(opts), opts, set)
+		M.set_keymap(lhs, rhs, mode, get_keymap_opts(KEYMAP_SET_OPTS, opts), opts, set)
 	elseif type(mode) == "table" then
 		parse_mode(lhs, rhs, mode, opts, set)
 	end
@@ -234,6 +239,27 @@ function M.load_event()
 	end
 end
 
+local function del_keymap(lhs, mode, opts)
+	M.delete_keymaps[lhs] = M.delete_keymaps[lhs] or {}
+	M.delete_keymaps[lhs][mode] = opts
+	local keymap_opts = get_keymap_opts(KEYMAP_DEL_OPTS, opts)
+	pcall(vim.keymap.del, mode, lhs, keymap_opts)
+end
+
+local function parse_delete_keymap(lhs, data)
+	local opts = get_opts(data)
+
+	for _, mode in ipairs(data) do
+		if type(mode) == "string" then
+			collect_event_keymap("BufReadPre", function()
+				del_keymap(lhs, mode, opts)
+			end)
+		elseif type(mode) == "table" then
+			parse_delete_keymap(lhs, vim.tbl_extend("force", opts, mode))
+		end
+	end
+end
+
 ---@param source NativePacker.KeySpec
 function M.add(source, set)
 	for lhs, config in pairs(source) do
@@ -241,6 +267,19 @@ function M.add(source, set)
 	end
 end
 
-function M.del() end
+function M.del(source)
+	for lhs, config in pairs(source) do
+		parse_delete_keymap(lhs, config)
+	end
+end
+
+--- @param lhs string
+--- | '"ALL"'
+function M.get(lhs)
+	if lhs == "ALL" then
+		return M.keymaps
+	end
+	return M.keymaps[lhs]
+end
 
 return M
