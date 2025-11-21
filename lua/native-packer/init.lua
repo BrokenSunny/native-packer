@@ -26,6 +26,8 @@ function M.setup(source)
 			return require("native-packer.core").get_all_repo_plugin_names()
 		end,
 	})
+	require("native-packer.key.core").load_filetype()
+	require("native-packer.key.core").load_event()
 end
 
 return M

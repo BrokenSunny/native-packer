@@ -17,7 +17,7 @@ local Depend = require("native-packer.depend")
 ---@field cmd? string|string[]
 ---@field ft? string|string[]
 ---@field colorscheme? string|string[]
----@field key? any
+---@field key? NativePacker.KeySpec
 
 ---@class NativePacker.PluginSpecHooks
 ---@field config? fun()
@@ -235,7 +235,7 @@ local function packadd(data)
 	M._plugin_map[data.repo or data.name] = data
 
 	if data.startup then
-		require("native-packer.handler.key").add(data.key or {})
+		require("native-packer.key").add(data.key or {})
 		M.load(data)
 	else
 		Handler.register(data)
