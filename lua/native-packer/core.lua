@@ -5,6 +5,7 @@ M._plugin_map = {}
 M.local_plugin_map = {}
 M.repo_plugin_map = {}
 M.loaded_plugins = {}
+M._plugin_key_map = {}
 local Handler = require("native-packer.handler")
 local Depend = require("native-packer.depend")
 
@@ -66,14 +67,7 @@ local function create_spec(plugin_spec)
 	if type(data.name) ~= "string" then
 		data.name = nil
 	end
-	if plugin_spec[1] then
-		spec.src = GITHUB_URL .. plugin_spec[1]
-		spec.version = plugin_spec.version
-		spec.name = plugin_spec.name
-		spec.data.src = spec.src
-		spec.data.repo = plugin_spec[1]
-		spec.data.version = spec.version
-	end
+
 	if
 		#data.cmd > 0
 		or #spec.data.ft > 0
@@ -83,6 +77,17 @@ local function create_spec(plugin_spec)
 	then
 		data.lazy = true
 		data.startup = nil
+	end
+
+	if plugin_spec[1] then
+		spec.src = GITHUB_URL .. plugin_spec[1]
+		spec.version = plugin_spec.version
+		spec.name = plugin_spec.name
+		spec.data.src = spec.src
+		spec.data.repo = plugin_spec[1]
+		spec.data.version = spec.version
+		M._plugin_key_map[data.repo] = data.key
+		data.key = nil
 	end
 
 	return spec
@@ -282,21 +287,17 @@ function M.add(source)
 	local skipped_packadd = create_skipped_packadd(specs)
 	local remaining_packadd = create_remaining_packadd(#repo_specs, specs)
 	on_pack_changed()
-	for _, spec in ipairs(repo_specs) do
-		local key = spec.data.key
-		spec.data.key = nil
-		vim.pack.add({ spec }, {
-			load = function(plug_data)
-				local data = plug_data.spec.data
-				data.path = plug_data.path
-				data.name = plug_data.spec.name
-				data.key = key
-				skipped_packadd(data)
-				packadd(data)
-				remaining_packadd(data)
-			end,
-		})
-	end
+	vim.pack.add(repo_specs, {
+		load = function(plug_data)
+			local data = plug_data.spec.data
+			data.path = plug_data.path
+			data.name = plug_data.spec.name
+			data.key = M._plugin_key_map[data.repo]
+			skipped_packadd(data)
+			packadd(data)
+			remaining_packadd(data)
+		end,
+	})
 end
 
 ---@param names string[]
