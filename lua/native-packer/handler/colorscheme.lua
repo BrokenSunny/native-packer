@@ -32,7 +32,7 @@ function M.register(plugin)
 		callback = function(e)
 			local colorscheme = e.match
 			if vim.list_contains(colorschemes, colorscheme) then
-				require("native-packer.core").load(plugin)
+				require("native-packer.core").load({ plugin.name })
 				return true
 			end
 		end,

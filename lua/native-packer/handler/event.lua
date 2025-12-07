@@ -46,7 +46,7 @@ function M.register(plugin)
 		local opt = {
 			group = group,
 			callback = function()
-				require("native-packer.core").load(plugin)
+				require("native-packer.core").load({ plugin.name })
 			end,
 			pattern = event.pattern,
 			once = true,

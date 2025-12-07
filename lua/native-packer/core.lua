@@ -4,6 +4,7 @@ M.plugin_map = {}
 M._plugin_map = {}
 M.local_plugin_map = {}
 M.repo_plugin_map = {}
+M.loaded_plugins = {}
 local Handler = require("native-packer.handler")
 local Depend = require("native-packer.depend")
 
@@ -210,22 +211,9 @@ local function load_depend(data)
 	for _, name in ipairs(data.depend) do
 		local dp = M._plugin_map[name]
 		if not dp.loaded then
-			M.load(dp)
+			M.load({ dp.name })
 		end
 	end
-end
-
-function M.load(data)
-	Handler.clean(data)
-	if data.loaded then
-		return
-	end
-	load_depend(data)
-	pcall(vim.cmd.packadd, data.name)
-	if data.config and type(data.config) == "function" then
-		data.config()
-	end
-	data.loaded = true
 end
 
 local function packadd(data)
@@ -239,7 +227,7 @@ local function packadd(data)
 
 	if data.startup then
 		require("native-packer.key").add(data.key or {})
-		M.load(data)
+		M.load({ data.name })
 	else
 		Handler.register(data)
 	end
@@ -312,6 +300,35 @@ function M.add(source)
 end
 
 ---@param names string[]
+function M.load(names)
+	for _, name in ipairs(names) do
+		if type(name) == "string" then
+			local data = M.plugin_map[name]
+			if data then
+				Handler.clean(data)
+				if data.loaded then
+					return
+				end
+				load_depend(data)
+				pcall(vim.cmd.packadd, data.name)
+				if data.config and type(data.config) == "function" then
+					data.config()
+				end
+				data.loaded = true
+				table.insert(M.loaded_plugins, data)
+			end
+		end
+	end
+end
+
+---@param names string[]
+---@param opts? vim.pack.keyset.get
+function M.get(names, opts)
+	local ok, v = pcall(vim.pack.get, names, opts)
+	return ok and v or {}
+end
+
+---@param names string[]
 function M.del(names)
 	pcall(vim.pack.del, names)
 end
@@ -328,6 +345,14 @@ end
 
 function M.get_all_plugin_names()
 	return vim.list_extend(vim.tbl_keys(M.repo_plugin_map), vim.tbl_keys(M.local_plugin_map))
+end
+
+function M.get_loaded_plugin_names()
+	local names = {}
+	for _, data in ipairs(M.loaded_plugins) do
+		table.insert(names, data.name)
+	end
+	return names
 end
 
 return M

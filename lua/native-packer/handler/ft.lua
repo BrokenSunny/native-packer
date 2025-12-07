@@ -34,7 +34,7 @@ function M.register(plugin)
 		callback = function()
 			local ft = vim.o.ft
 			if vim.list_contains(fts, ft) then
-				require("native-packer.core").load(plugin)
+				require("native-packer.core").load({ plugin.name })
 				return true
 			end
 		end,

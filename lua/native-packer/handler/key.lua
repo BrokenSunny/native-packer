@@ -22,7 +22,7 @@ function M.register(plugin)
 		end
 		table.insert(plugin.key_resets, reset)
 		local handle = function()
-			require("native-packer.core").load(plugin)
+			require("native-packer.core").load({ plugin.name })
 			vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Ignore>" .. lhs, true, true, true), "i", false)
 		end
 		pcall(vim.keymap.set, mode, lhs, handle, vim.tbl_extend("force", opts, { expr = true }))

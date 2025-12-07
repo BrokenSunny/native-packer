@@ -69,7 +69,7 @@ function M.register(plugin)
 	local cmds = plugin.cmd
 	for _, cmd in ipairs(cmds) do
 		register(cmd, function()
-			require("native-packer.core").load(plugin)
+			require("native-packer.core").load({ plugin.name })
 		end)
 	end
 end
