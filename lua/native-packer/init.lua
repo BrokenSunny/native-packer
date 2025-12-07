@@ -18,6 +18,12 @@ function M.setup(source)
 		bang = true,
 		nargs = 0,
 	})
+	vim.api.nvim_create_user_command("NativePackerDeleteAll", function()
+		local names = require("native-packer.core").get_all_repo_plugin_names()
+		require("native-packer.core").del(names)
+	end, {
+		nargs = 0,
+	})
 	vim.api.nvim_create_user_command("NativePackerDelete", function(args)
 		require("native-packer.core").del(args.fargs)
 	end, {
