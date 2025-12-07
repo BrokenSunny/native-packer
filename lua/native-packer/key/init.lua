@@ -28,6 +28,8 @@
 
 local M = {}
 
+---@param source NativePacker.KeySpec
+---@param set? any
 function M.add(source, set)
 	require("native-packer.key.core").add(source, set)
 end

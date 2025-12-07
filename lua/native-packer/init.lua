@@ -26,6 +26,19 @@ function M.setup(source)
 			return require("native-packer.core").get_all_repo_plugin_names()
 		end,
 	})
+	vim.api.nvim_create_user_command("NativePackerLoad", function(args)
+		for _, value in ipairs(args.fargs) do
+			local data = require("native-packer.core").repo_plugin_map[value]
+			if type(data) == "table" then
+				require("native-packer.core").load(data)
+			end
+		end
+	end, {
+		nargs = "*",
+		complete = function()
+			return require("native-packer.core").get_all_plugin_names()
+		end,
+	})
 	require("native-packer.key.core").load_filetype()
 	require("native-packer.key.core").load_event()
 end

@@ -221,7 +221,7 @@ function M.load(data)
 		return
 	end
 	load_depend(data)
-	vim.cmd.packadd(data.name)
+	pcall(vim.cmd.packadd, data.name)
 	if data.config and type(data.config) == "function" then
 		data.config()
 	end
@@ -324,6 +324,10 @@ end
 
 function M.get_all_repo_plugin_names()
 	return vim.tbl_keys(M.repo_plugin_map)
+end
+
+function M.get_all_plugin_names()
+	return vim.list_extend(vim.tbl_keys(M.repo_plugin_map), vim.tbl_keys(M.local_plugin_map))
 end
 
 return M
