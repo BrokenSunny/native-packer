@@ -324,9 +324,16 @@ end
 
 ---@param names string[]
 ---@param opts? vim.pack.keyset.get
+---@return vim.pack.PlugData[]
 function M.get(names, opts)
 	local ok, v = pcall(vim.pack.get, names, opts)
-	return ok and v or {}
+	local results = ok and v or {}
+	if ok then
+		for _, result in ipairs(results) do
+			result.spec.data.key = M._plugin_key_map[result.spec.data.repo]
+		end
+	end
+	return results
 end
 
 ---@param names string[]
