@@ -338,13 +338,13 @@ end
 
 ---@param names string[]
 function M.del(names)
-	pcall(vim.pack.del, names)
+	vim.pack.del(names, { force = true })
 end
 
 ---@param names? string[]
 ---@param opts? vim.pack.keyset.update
 function M.update(names, opts)
-	pcall(vim.pack.update, names, opts)
+	vim.pack.update(names, opts)
 end
 
 function M.get_all_repo_plugin_names()
