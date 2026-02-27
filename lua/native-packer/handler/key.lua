@@ -22,6 +22,13 @@ function M.register(plugin)
 		end
 		table.insert(plugin.key_resets, reset)
 		local handle = function()
+			if extra.depend then
+				local data = {
+					depend = extra.depend,
+				}
+				require("native-packer.depend").normalize(data)
+				require("native-packer.core").load(data.depend)
+			end
 			require("native-packer.core").load({ plugin.name })
 			vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Ignore>" .. lhs, true, true, true), "i", false)
 		end

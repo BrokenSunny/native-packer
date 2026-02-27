@@ -2,6 +2,7 @@
 ---@field ft? string|string[]
 ---@field exclude_ft? string|string[]
 ---@field event? string|string[]
+---@field depend? string|string[]
 ---@field context? any
 
 ---@class NativePacker.KeySpec.ModeBase: NativePacker.KeySpec.Options
