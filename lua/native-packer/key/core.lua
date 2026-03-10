@@ -101,7 +101,7 @@ end
 
 local function set_keymap(mode, lhs, rhs, opts, extra)
 	local _rhs = rhs
-	if extra.context ~= nil and type(rhs) == "function" then
+	if not opts.expr and type(rhs) == "function" then
 		rhs = function()
 			_rhs(extra)
 		end

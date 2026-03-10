@@ -13,7 +13,7 @@ function M.register(plugin)
 	require("native-packer.key").add(keys, function(mode, lhs, rhs, opts, extra)
 		local reset = function()
 			local _rhs = rhs
-			if extra.context == true and type(rhs) == "function" then
+			if not extra.expr and type(rhs) == "function" then
 				rhs = function()
 					_rhs(extra)
 				end
