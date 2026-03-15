@@ -44,8 +44,8 @@ local function create_spec(plugin_spec)
 	local spec = {}
 
 	local data = {
-		startup = not plugin_spec.lazy,
-		lazy = plugin_spec.lazy,
+		startup = nil,
+		lazy = nil,
 		depend = plugin_spec.depend,
 		enabled = plugin_spec.enabled,
 		priority = plugin_spec.priority or 100,
@@ -76,7 +76,14 @@ local function create_spec(plugin_spec)
 		or vim.tbl_count(spec.data.key) > 0
 	then
 		data.lazy = true
-		data.startup = nil
+	end
+
+	if plugin_spec.lazy == false then
+		data.lazy = false
+	end
+
+	if not data.lazy then
+		data.startup = true
 	end
 
 	if plugin_spec[1] then
