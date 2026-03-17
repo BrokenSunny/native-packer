@@ -32,16 +32,16 @@ local M = {}
 ---@param source NativePacker.KeySpec
 ---@param set? any
 function M.add(source, set)
-	require("native-packer.key.core").add(source, set)
+  require("native-packer.key.core").add(source, set)
 end
 
 function M.del(source)
-	require("native-packer.key.core").del(source)
+  require("native-packer.key.core").del(source)
 end
 
 ---@param lhs string
 function M.get(lhs)
-	return require("native-packer.key.core").get(lhs)
+  return require("native-packer.key.core").get(lhs)
 end
 
 return M
