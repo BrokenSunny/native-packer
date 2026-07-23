@@ -1,38 +1,48 @@
 local M = {}
 
-function M.normalize(data)
-  local colorscheme = data.colorscheme
-  local colorschemes = {}
-
-  if type(colorscheme) == "string" then
-    colorscheme = { colorscheme }
-  elseif type(colorscheme) == "table" then
-    colorscheme = colorscheme
-  else
-    colorscheme = {}
+--- @param spec NativePacker.Plugin.Spec
+--- @return string[]
+function M.normalize(spec)
+  local plugin_name = spec[1] or spec.name
+  local source = spec.colorscheme
+  --- @type string[]
+  local colorscheme = {}
+  if type(source) ~= "table" then
+    source = { source }
   end
 
-  for _, d in ipairs(colorscheme) do
-    if type(d) == "string" then
-      colorschemes[#colorschemes + 1] = d
+  for _, value in ipairs(source) do
+    if type(value) == "string" then
+      colorscheme[#colorscheme + 1] = value
+    else
+      vim.api.nvim_echo({
+        {
+          "NativePackerWarn: [" .. plugin_name .. "].colorscheme expected string, but got " .. type(value) .. "!!!",
+          "WarningMsg",
+        },
+      }, true)
     end
   end
-  data.colorscheme = colorschemes
+
+  return colorscheme
 end
 
-function M.register(plugin)
-  local colorschemes = plugin.colorscheme
+--- @param data NativePacker.Plugin.Data
+--- @param loader fun(data: NativePacker.Plugin.Data)
+function M.register(data, loader)
+  local colorschemes = data.colorscheme
   if #colorschemes == 0 then
     return
   end
 
-  local group = vim.api.nvim_create_augroup(plugin.name .. ":colorscheme", { clear = true })
+  local group = vim.api.nvim_create_augroup("NativePacker:colorscheme", { clear = false })
   vim.api.nvim_create_autocmd("ColorSchemePre", {
     group = group,
     callback = function(e)
       local colorscheme = e.match
       if vim.list_contains(colorschemes, colorscheme) then
-        require("native-packer.core").load({ plugin.name })
+        -- vim.print(colorscheme .. ": load " .. data.name)
+        loader(data)
         return true
       end
     end,
@@ -40,11 +50,18 @@ function M.register(plugin)
   })
 end
 
-function M.clean(plugin)
-  if #plugin.colorscheme == 0 then
+--- @param data NativePacker.Plugin.Data
+function M.clean(data)
+  if #data.colorscheme == 0 then
     return
   end
-  pcall(vim.api.nvim_del_augroup_by_name, plugin.name .. ":colorscheme")
+  pcall(vim.api.nvim_del_augroup_by_name, "NativePacker:colorscheme")
+end
+
+--- @param colorscheme string[]
+--- @return boolean
+function M.has(colorscheme)
+  return #colorscheme > 0
 end
 
 return M

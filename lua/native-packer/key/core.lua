@@ -1,32 +1,127 @@
 local M = {
   keymaps = {},
-  delete_keymaps = {},
+  del_keymaps = {},
   filetypes = {},
   exclude_filetypes = {
     ["blink-cmp-menu"] = {},
     ["fzf"] = {},
   },
-  events = {},
+  --- @type table<string, fun()[]>
+  events = {
+    FileType = {},
+  },
+  --- @type table<string, integer>
+  autcmds = {},
 }
+local EVENT_GROUP_NAME = "NativePacker.key:event"
 
-local KEYMAP_SET_OPTS = {
-  noremap = true,
-  nowait = true,
-  silent = true,
-  script = true,
-  expr = true,
-  unique = true,
-  callback = true,
-  desc = true,
-  replace_keycodes = true,
-  buffer = true,
-  remap = true,
-}
+-- stylua: ignore
+local KEYMAP_SET_OPTS = { noremap = true, nowait = true, silent = true, script = true, expr = true, unique = true, callback = true, desc = true, replace_keycodes = true, buffer = true, remap = true, }
+-- stylua: ignore
+local KEYMAP_DEL_OPTS = { buffer = true, }
 
-local KEYMAP_DEL_OPTS = {
-  buffer = true,
-}
+--- @param where table
+--- @param lhs any
+local function echo_add_lhs_type_invalid(where, lhs)
+  vim.api.nvim_echo({
+    {
+      "NativePackerError: native-packer.key.add(keymaps): keymaps = { [lhs] = config }: lhs expected string, but got "
+        .. type(lhs)
+        .. "\n",
+      "ErrorMsg",
+    },
+    {
+      "source: " .. vim.inspect(where) .. "\n",
+      "ErrorMsg",
+    },
+  }, true)
+end
 
+--- @param where table
+--- @param rhs any
+local function echo_rhs_type_invalid(where, rhs)
+  vim.api.nvim_echo({
+    {
+      "NativePackerError: native-packer.key.add(keymaps): keymaps = { [lhs] = config }: rhs = config[1]: rhs expected string|function, but got "
+        .. type(rhs)
+        .. "\n",
+      "ErrorMsg",
+    },
+    {
+      "source: " .. vim.inspect(where) .. "\n",
+      "ErrorMsg",
+    },
+  }, true)
+end
+
+--- @param where table
+--- @param lhs any
+local function echo_del_lhs_type_invalid(where, lhs)
+  vim.api.nvim_echo({
+    {
+      "NativePackerError: native-packer.key.del(keymaps): keymaps = { [lhs] = config }: lhs expected string, but got "
+        .. type(lhs)
+        .. "\n",
+      "ErrorMsg",
+    },
+    {
+      "source: " .. vim.inspect(where) .. "\n",
+      "ErrorMsg",
+    },
+  }, true)
+end
+
+--- @param where table
+--- @param config any
+local function echo_add_config_type_invalid(where, config)
+  vim.api.nvim_echo({
+    {
+      "NativePackerError: native-packer.key.add(keymaps): keymaps = { [lhs] = config }: config expected table, but got "
+        .. type(config)
+        .. "\n",
+      "ErrorMsg",
+    },
+    {
+      "source: " .. vim.inspect(where) .. "\n",
+      "ErrorMsg",
+    },
+  }, true)
+end
+
+--- @param where table
+--- @param mode any
+local function echo_add_mode_type_invalid(where, mode)
+  vim.api.nvim_echo({
+    {
+      "NativePackerError: native-packer.key.add(keymaps): mode expected string, but got " .. type(mode) .. "\n",
+      "ErrorMsg",
+    },
+    {
+      "source: " .. vim.inspect(where) .. "\n",
+      "ErrorMsg",
+    },
+  }, true)
+end
+
+--- @param where table
+--- @param mode any
+local function echo_del_mode_type_invalid(where, mode)
+  vim.api.nvim_echo({
+    {
+      "NativePackerError: native-packer.key.del(keymaps): mode expected string, but got " .. type(mode) .. "\n",
+      "ErrorMsg",
+    },
+    {
+      "source: " .. vim.inspect(where) .. "\n",
+      "ErrorMsg",
+    },
+  }, true)
+end
+
+--- @param lhs string
+--- @param rhs string|fun()
+--- @param mode string
+--- @param extra NativePacker.Key.Options
 local function collect_keymap(lhs, rhs, mode, extra)
   if not M.keymaps[lhs] then
     M.keymaps[lhs] = {
@@ -42,37 +137,70 @@ local function collect_keymap(lhs, rhs, mode, extra)
   M.keymaps[lhs][mode] = vim.tbl_extend("force", M.keymaps[lhs][mode], extra)
 end
 
-local function collect_filetype_keymap(map, filetype, callback)
-  if type(filetype) == "string" then
-    map[filetype] = map[filetype] or {}
-    table.insert(map[filetype], function(buf)
-      callback(buf)
-    end)
-    return
+--- @param where table
+--- @param map table<string, fun()[]>
+--- @param filetype any
+--- @param callback fun(buffer: integer)
+local function collect_filetype_keymap(where, map, filetype, callback)
+  if type(filetype) ~= "table" then
+    filetype = { filetype }
   end
 
-  if type(filetype) == "table" then
-    for _, ft in ipairs(filetype) do
-      collect_filetype_keymap(map, ft, callback)
+  for _, ft in ipairs(filetype) do
+    if type(ft) == "string" then
+      map[ft] = map[ft] or {}
+      table.insert(map[ft], function(buf)
+        callback(buf)
+      end)
+    else
+      vim.api.nvim_echo({
+        {
+          "NativePackerError: native-packer.key.add(keymaps): keymaps[lhs].ft expected string, but got "
+            .. type(ft)
+            .. "\n",
+          "ErrorMsg",
+        },
+        {
+          "source: " .. vim.inspect(where) .. "\n",
+        },
+      }, true)
     end
   end
 end
 
-local function collect_event_keymap(event, callback)
-  if type(event) == "string" then
-    M.events[event] = M.events[event] or {}
-    table.insert(M.events[event], callback)
-    return
+--- @param where table
+--- @param event any
+--- @param callback fun()
+local function collect_event_keymap(where, event, callback)
+  if type(event) ~= "table" then
+    event = { event }
   end
 
-  if type(event) == "table" then
-    for _, e in ipairs(event) do
-      collect_event_keymap(e, callback)
+  for _, e in ipairs(event) do
+    if type(e) == "string" then
+      M.events[e] = M.events[e] or {}
+      table.insert(M.events[e], callback)
+    else
+      vim.api.nvim_echo({
+        {
+          "NativePackerError: native-packer.key.add(keymaps): keymaps[lhs].event expected string, but got "
+            .. type(e)
+            .. "\n",
+          "ErrorMsg",
+        },
+        {
+          "source: " .. vim.inspect(where) .. "\n",
+          "ErrorMsg",
+        },
+      }, true)
     end
   end
 end
 
-local function get_opts(opts, parent_opts)
+--- @param opts table
+--- @param parent_opts table|nil
+--- @return table
+local function filter_opts(opts, parent_opts)
   local final_opts = {}
   for key, value in pairs(opts) do
     if type(key) == "string" then
@@ -83,7 +211,10 @@ local function get_opts(opts, parent_opts)
   return final_opts
 end
 
-local function get_keymap_opts(map, opts)
+--- @param map table
+--- @param opts NativePacker.Key.Options
+--- @return vim.keymap.set.Opts| vim.keymap.del.Opts
+local function filter_keymap_options(map, opts)
   local keymap_opts = {}
   for key, value in pairs(opts) do
     if map[key] then
@@ -99,7 +230,7 @@ local function is_rhs(rhs)
   return type(rhs) == "string" or type(rhs) == "function"
 end
 
-local function set_keymap(mode, lhs, rhs, opts, extra)
+local function _set(mode, lhs, rhs, opts, extra)
   local _rhs = rhs
   if not opts.expr and type(rhs) == "function" then
     rhs = function()
@@ -108,178 +239,221 @@ local function set_keymap(mode, lhs, rhs, opts, extra)
   end
   local ok, err = pcall(vim.keymap.set, mode, lhs, rhs, opts)
   if not ok then
-    vim.schedule(function()
-      vim.notify(("Keymap failed: %s"):format(err), vim.log.levels.WARN)
-    end)
+    vim.api.nvim_echo({ { "NativePackerError: vim.keymap.set: " .. vim.inspect(err), "ErrorMsg" } }, true)
   end
 end
 
----@param lhs string
----@param rhs string|fun()
----@param mode string
----@param opts vim.keymap.set.Opts
----@param extra NativePacker.KeySpec.Options
-function M.set_keymap(lhs, rhs, mode, opts, extra, set)
-  if not is_rhs(rhs) then
-    vim.notify("rhs must be string or function")
-    return
-  end
-  if type(mode) ~= "string" then
-    vim.notify("mode must be string or table<string>")
-    return
-  end
-  set = set or set_keymap
+--- @param where table
+--- @param lhs string
+--- @param rhs string|fun()
+--- @param mode string
+--- @param opts vim.keymap.set.Opts
+--- @param extra NativePacker.Key.Options
+--- @param set? fun()
+local function set_keymap(where, lhs, rhs, mode, opts, extra, set)
+  set = set or _set
   collect_keymap(lhs, rhs, mode, extra)
+
   if extra.ft or extra.exclude_ft then
-    collect_filetype_keymap(M.filetypes, extra.ft, function(buffer)
+    collect_filetype_keymap(where, M.filetypes, extra.ft, function(buffer)
       set(mode, lhs, rhs, vim.tbl_extend("force", opts, { buffer = buffer }), extra)
     end)
-    collect_filetype_keymap(M.exclude_filetypes, extra.exclude_ft, function(buffer)
+    collect_filetype_keymap(where, M.exclude_filetypes, extra.exclude_ft, function(buffer)
       set(mode, lhs, rhs, vim.tbl_extend("force", opts, { buffer = buffer }), extra)
     end)
     return
   end
+
   if extra.event then
-    collect_event_keymap(extra.event, function()
+    collect_event_keymap(where, extra.event, function()
       set(mode, lhs, rhs, opts, extra)
     end)
     return
   end
+
   set(mode, lhs, rhs, opts, extra)
 end
 
-local function parse_mode(lhs, rhs, modes, parent_opts, set)
-  for _, mode in ipairs(modes) do
-    M.set_mode_keymap(lhs, rhs, mode, get_opts(modes, parent_opts), set)
-  end
-end
-
----@param lhs string
----@param rhs NativePacker.KeySpec.Rhs
----@param mode NativePacker.KeySpec.Mode
----@param opts NativePacker.KeySpec.Options
-function M.set_mode_keymap(lhs, rhs, mode, opts, set)
+--- @param where table
+--- @param lhs string
+--- @param rhs NativePacker.Key.Rhs
+--- @param mode NativePacker.Key.Mode
+--- @param opts NativePacker.Key.Options
+--- @param set? fun()
+local function set_mode_keymap(where, lhs, rhs, mode, opts, set)
   if type(mode) == "string" then
-    M.set_keymap(lhs, rhs, mode, get_keymap_opts(KEYMAP_SET_OPTS, opts), opts, set)
+    set_keymap(
+      where,
+      lhs,
+      rhs,
+      mode,
+      filter_keymap_options(KEYMAP_SET_OPTS, opts) --[[@as vim.keymap.set.Opts]],
+      opts,
+      set
+    )
   elseif type(mode) == "table" then
-    parse_mode(lhs, rhs, mode, opts, set)
+    local modes = mode --[[@as NativePacker.Key.Modes]]
+    for _, md in ipairs(modes) do
+      set_mode_keymap(where, lhs, rhs, md, filter_opts(modes, opts), set)
+    end
+  else
+    echo_add_mode_type_invalid(where, mode)
   end
 end
 
-local function parse_one_rhs(lhs, data, parent_opts, set)
-  local rhs = data[1]
-  local mode = data[2]
-  M.set_mode_keymap(lhs, rhs, mode, get_opts(data, parent_opts), set)
+--- @param where table
+--- @param lhs string
+--- @param config NativePacker.Key.SingleModeConfig
+--- @param parent_opts NativePacker.Key.Options
+--- @param set? fun()
+local function parse_one_rhs(where, lhs, config, parent_opts, set)
+  local rhs = config[1]
+  local mode = config[2]
+  set_mode_keymap(where, lhs, rhs, mode, filter_opts(config, parent_opts), set)
 end
 
-local function parse_more_rhs(lhs, data, parent_opts, set)
-  for _, value in ipairs(data) do
-    parse_one_rhs(lhs, value, get_opts(data, parent_opts), set)
+--- @param where table
+--- @param lhs string
+--- @param config NativePacker.Key.MultiModeConfig
+--- @param parent_opts NativePacker.Key.Options
+--- @param set? fun()
+local function parse_more_rhs(where, lhs, config, parent_opts, set)
+  for _, cfg in ipairs(config) do
+    parse_one_rhs(where, lhs, cfg, filter_opts(config, parent_opts), set)
   end
 end
 
----@param lhs string
----@param config NativePacker.KeySpec.Config
-function M.parse_keymap(lhs, config, set)
+--- @param where table
+--- @param lhs string
+--- @param config NativePacker.Key.Config
+--- @param set? fun()
+local function parse_keymap_add(where, lhs, config, set)
   if type(config) ~= "table" then
-    vim.notify("lhs = value must be table")
+    echo_add_config_type_invalid(where, config)
     return
   end
-  local opts = get_opts(config, {})
+
+  local opts = filter_opts(config) --[[@as NativePacker.Key.Options]]
+
   if is_rhs(config[1]) then
-    parse_one_rhs(lhs, config, opts, set)
-    return
-  end
-  if type(config[1]) == "table" then
-    parse_more_rhs(lhs, config, opts, set)
+    parse_one_rhs(where, lhs, config --[[@as NativePacker.Key.SingleModeConfig]], opts, set)
+  elseif type(config[1]) == "table" then
+    parse_more_rhs(where, lhs, config --[[@as NativePacker.Key.MultiModeConfig]], opts, set)
+  else
+    echo_rhs_type_invalid(where, config[1])
   end
 end
 
-function M.load_filetype()
-  if vim.tbl_count(M.filetypes) > 0 then
-    vim.api.nvim_create_autocmd("FileType", {
-      group = vim.api.nvim_create_augroup("native-packer-keymap-filetype", {}),
-      pattern = vim.tbl_keys(M.filetypes),
-      callback = function(ev)
-        local callbacks = M.filetypes[vim.bo.filetype] or {}
-        for _, cb in ipairs(callbacks) do
-          cb(ev.buf)
+local function create_hook()
+  local group = vim.api.nvim_create_augroup(EVENT_GROUP_NAME, { clear = false })
+  for event, callbacks in pairs(M.events) do
+    if not M.autcmds[event] then
+      local opts = {
+        group = group,
+      }
+      if event == "FileType" then
+        opts.pattern = "*"
+        opts.callback = function(ev)
+          local filetype = vim.bo.filetype
+          vim.schedule(function()
+            if M.exclude_filetypes[filetype] then
+              return
+            end
+            for _, cb in ipairs(M.filetypes[filetype] or {}) do
+              cb(ev.buf)
+            end
+            for _, cbs in pairs(M.exclude_filetypes) do
+              for _, cb in ipairs(cbs) do
+                cb(ev.buf)
+              end
+            end
+          end)
         end
-      end,
-    })
-  end
-  if vim.tbl_count(M.exclude_filetypes) > 0 then
-    vim.api.nvim_create_autocmd("FileType", {
-      group = vim.api.nvim_create_augroup("native-packer-keymap-exclude-filetype", {}),
-      pattern = "*",
-      callback = function(ev)
-        if M.exclude_filetypes[vim.bo.filetype] then
-          return
-        end
-        for _, callbacks in pairs(M.exclude_filetypes) do
+      else
+        opts.callback = function()
           for _, cb in ipairs(callbacks) do
-            cb(ev.buf)
+            cb()
           end
         end
-      end,
-    })
-  end
-end
-
-function M.load_event()
-  for event, callbacks in pairs(M.events) do
-    vim.api.nvim_create_autocmd(event, {
-      group = vim.api.nvim_create_augroup("simple-keymap-event", {}),
-      callback = function()
-        for _, cb in ipairs(callbacks) do
-          cb()
-        end
-      end,
-    })
-  end
-end
-
-local function del_keymap(lhs, mode, opts)
-  M.delete_keymaps[lhs] = M.delete_keymaps[lhs] or {}
-  M.delete_keymaps[lhs][mode] = opts
-  local keymap_opts = get_keymap_opts(KEYMAP_DEL_OPTS, opts)
-  pcall(vim.keymap.del, mode, lhs, keymap_opts)
-end
-
-local function parse_delete_keymap(lhs, data)
-  local opts = get_opts(data)
-
-  for _, mode in ipairs(data) do
-    if type(mode) == "string" then
-      collect_event_keymap("BufReadPre", function()
-        del_keymap(lhs, mode, opts)
-      end)
-    elseif type(mode) == "table" then
-      parse_delete_keymap(lhs, vim.tbl_extend("force", opts, mode))
+      end
+      M.autcmds[event] = vim.api.nvim_create_autocmd(event, opts)
     end
   end
 end
 
----@param source NativePacker.KeySpec
-function M.add(source, set)
-  for lhs, config in pairs(source) do
-    M.parse_keymap(lhs, config, set)
-  end
-end
-
-function M.del(source)
-  for lhs, config in pairs(source) do
-    parse_delete_keymap(lhs, config)
-  end
-end
-
 --- @param lhs string
---- | '"ALL"'
-function M.get(lhs)
-  if lhs == "ALL" then
-    return M.keymaps
+--- @param mode string
+--- @param opts table
+local function del_keymap(lhs, mode, opts)
+  M.del_keymaps[lhs] = M.del_keymaps[lhs] or {}
+  M.del_keymaps[lhs][mode] = opts
+  return pcall(vim.keymap.del, mode, lhs, filter_keymap_options(KEYMAP_DEL_OPTS, opts) --[[@as vim.keymap.del.Opts]])
+end
+
+--- @param where table
+--- @param lhs string
+--- @param mode any
+--- @param opts table
+local function pending_del_keymap(where, lhs, mode, opts)
+  if type(mode) ~= "string" then
+    echo_del_mode_type_invalid(where, mode)
   end
-  return M.keymaps[lhs]
+  local ok = del_keymap(lhs, mode, opts)
+  if not ok then
+    collect_event_keymap(where, "BufReadPre", function()
+      del_keymap(lhs, mode, opts)
+    end)
+  end
+end
+
+--- @param where table
+--- @param lhs string
+--- @param config NativePacker.DelKey.Config
+local function parse_keymap_del(where, lhs, config)
+  if type(config) ~= "table" then
+    config = { config }
+  end
+
+  local opts = filter_opts(config --[[@as NativePacker.DelKey.MultiModeConfig]])
+  for _, mode in ipairs(config) do
+    if type(mode) ~= "table" then
+      pending_del_keymap(where, lhs, mode, opts)
+    else
+      parse_keymap_del(where, lhs, vim.tbl_extend("force", opts, mode))
+    end
+  end
+end
+
+--- @param keymaps NativePacker.Key
+--- @param set? fun()
+function M.add(keymaps, set)
+  for lhs, config in pairs(keymaps) do
+    local where = { [lhs] = config }
+    if type(lhs) == "string" then
+      parse_keymap_add(where, lhs, config, set)
+    else
+      echo_add_lhs_type_invalid(where, lhs)
+    end
+  end
+  create_hook()
+end
+
+--- @param keymaps NativePacker.DelKey
+function M.del(keymaps)
+  for lhs, config in pairs(keymaps) do
+    local where = { [lhs] = config }
+    if type(lhs) == "string" then
+      parse_keymap_del(where, lhs, config)
+    else
+      echo_del_lhs_type_invalid(where, lhs)
+    end
+  end
+  create_hook()
+end
+
+--- @param lhs string|nil
+function M.get(lhs)
+  return M.keymaps[lhs] or M.keymaps
 end
 
 return M

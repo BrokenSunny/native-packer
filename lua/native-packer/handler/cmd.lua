@@ -1,83 +1,85 @@
 local M = {}
 
-local function notify()
-  vim.notify("native-packer: cmd: string | string[]", vim.log.levels.ERROR)
-end
+--- @param spec NativePacker.Plugin.Spec
+--- @return string[]
+function M.normalize(spec)
+  local plugin_name = spec[1] or spec.name
+  local source = spec.cmd
+  --- @type string[]
+  local cmd = {}
+  if type(source) ~= "table" then
+    source = { source }
+  end
 
-function M.normalize(data)
-  local cmd = data.cmd
-  local cmds = {}
-
-  if cmd then
-    if type(cmd) == "string" then
-      cmds = { cmd }
-    elseif type(cmd) == "table" then
-      for _, c in ipairs(cmd) do
-        if type(c) == "string" then
-          cmds[#cmds + 1] = c
-        else
-          notify()
-        end
-      end
+  for _, value in ipairs(source) do
+    if type(value) == "string" then
+      cmd[#cmd + 1] = value
     else
-      notify()
+      vim.api.nvim_echo({
+        {
+          "NativePackerWarn: [" .. plugin_name .. "].cmd[integer] expectd string, but got " .. type(value) .. "\n",
+          "WarningMsg",
+        },
+      }, true)
     end
   end
-  data.cmd = cmds
+  return cmd
 end
 
-local function register(cmd, loader)
-  vim.api.nvim_create_user_command(cmd, function(event)
-    local command = {
-      cmd = cmd,
-      bang = event.bang or nil,
-      mods = event.smods,
-      args = event.fargs,
-      count = event.count >= 0 and event.range == 0 and event.count or nil,
-    }
+--- @param data NativePacker.Plugin.Data
+--- @param loader fun(data: NativePacker.Plugin.Data)
+function M.register(data, loader)
+  for _, cmd in ipairs(data.cmd) do
+    vim.api.nvim_create_user_command(cmd, function(event)
+      local command = {
+        cmd = cmd,
+        bang = event.bang or nil,
+        mods = event.smods,
+        args = event.fargs,
+        count = event.count >= 0 and event.range == 0 and event.count or nil,
+      }
 
-    if event.range == 1 then
-      command.range = { event.line1 }
-    elseif event.range == 2 then
-      command.range = { event.line1, event.line2 }
-    end
+      if event.range == 1 then
+        command.range = { event.line1 }
+      elseif event.range == 2 then
+        command.range = { event.line1, event.line2 }
+      end
+      -- vim.print(cmd .. ": load " .. data.name)
+      loader(data)
 
-    loader()
+      local info = vim.api.nvim_get_commands({})[cmd] or vim.api.nvim_buf_get_commands(0, {})[cmd]
+      if not info then
+        return
+      end
 
-    local info = vim.api.nvim_get_commands({})[cmd] or vim.api.nvim_buf_get_commands(0, {})[cmd]
-    if not info then
-      return
-    end
-
-    command.nargs = info.nargs
-    if event.args and event.args ~= "" and info.nargs and info.nargs:find("[1?]") then
-      command.args = { event.args }
-    end
-    vim.cmd(command)
-  end, {
-    bang = true,
-    range = true,
-    nargs = "*",
-    complete = function(_, line)
-      loader()
-      return vim.fn.getcompletion(line, "cmdline")
-    end,
-  })
-end
-
-function M.register(plugin)
-  local cmds = plugin.cmd
-  for _, cmd in ipairs(cmds) do
-    register(cmd, function()
-      require("native-packer.core").load({ plugin.name })
-    end)
+      command.nargs = info.nargs
+      if event.args and event.args ~= "" and info.nargs and info.nargs:find("[1?]") then
+        command.args = { event.args }
+      end
+      vim.cmd(command)
+    end, {
+      bang = true,
+      range = true,
+      nargs = "*",
+      complete = function(_, line)
+        loader(data)
+        return vim.fn.getcompletion(line, "cmdline")
+      end,
+    })
   end
 end
 
-function M.clean(plugin)
-  for _, cmd in ipairs(plugin.cmd) do
-    pcall(vim.api.nvim_del_user_command, cmd)
+--- @param data NativePacker.Plugin.Data
+function M.clean(data)
+  for _, cmd in ipairs(data.cmd) do
+    vim.api.nvim_del_user_command(cmd)
   end
+end
+
+--- @param cmd string[]
+--- @return boolean
+function M.has(cmd)
+  return #cmd > 0
 end
 
 return M

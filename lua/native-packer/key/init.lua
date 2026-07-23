@@ -1,47 +1,57 @@
----@class NativePacker.KeySpec.Options: vim.keymap.set.Opts
----@field ft? string|string[]
----@field exclude_ft? string|string[]
----@field event? string|string[]
----@field depend? string|string[]
----@field context? any
+--- @class NativePacker.Key.Options: vim.keymap.set.Opts
+--- @field ft? string|string[]
+--- @field exclude_ft? string|string[]
+--- @field event? NativePacker.Plugin.Spec.Event
+--- @field depend? string|string[]
 
----@class NativePacker.KeySpec.ModeBase: NativePacker.KeySpec.Options
----@field [integer] string|NativePacker.KeySpec.ModeBase
+--- @class NativePacker.DelKey.Options: vim.keymap.del.Opts
 
----@alias NativePacker.KeySpec.Mode
----|string
----|NativePacker.KeySpec.ModeBase
+--- @class NativePacker.Key.Modes: NativePacker.Key.Options
+--- @field [integer] NativePacker.Key.Mode
 
----@alias NativePacker.KeySpec.Rhs string|fun()
+--- @alias NativePacker.Key.Rhs string|fun()
 
----@class NativePacker.KeySpec.SingleConfig: NativePacker.KeySpec.Options
----@field [1] NativePacker.KeySpec.Rhs
----@field [2] NativePacker.KeySpec.Mode
+--- @alias NativePacker.Key.Mode
+--- |string
+--- |NativePacker.Key.Modes
 
----@class NativePacker.KeySpec.MultiConfig: NativePacker.KeySpec.Options
----@field [integer] NativePacker.KeySpec.SingleConfig
+--- @class NativePacker.Key.SingleModeConfig: NativePacker.Key.Options
+--- @field [1] NativePacker.Key.Rhs
+--- @field [2] NativePacker.Key.Mode
 
----@alias NativePacker.KeySpec.Config
----| NativePacker.KeySpec.SingleConfig
----| NativePacker.KeySpec.MultiConfig
+--- @class NativePacker.Key.MultiModeConfig: NativePacker.Key.Options
+--- @field [integer] NativePacker.Key.SingleModeConfig
 
----@alias NativePacker.KeySpec table<string, NativePacker.KeySpec.Config>
+--- @alias NativePacker.Key.Config
+--- |NativePacker.Key.SingleModeConfig
+--- |NativePacker.Key.MultiModeConfig
+
+--- @class NativePacker.DelKey.MultiModeConfig: vim.keymap.del.Opts
+--- @field [integer] NativePacker.DelKey.Config
+
+--- @alias NativePacker.DelKey.Config
+--- |string
+--- |NativePacker.DelKey.MultiModeConfig
+
+--- @alias NativePacker.Key table<string, NativePacker.Key.Config>
+
+--- @alias NativePacker.DelKey table<string, NativePacker.DelKey.Config>
 
 local M = {}
 
----@param source NativePacker.KeySpec
----@param set? any
+--- @param source NativePacker.Key
 function M.add(source, set)
   require("native-packer.key.core").add(source, set)
 end
 
+--- @param source NativePacker.DelKey
 function M.del(source)
   require("native-packer.key.core").del(source)
 end
 
----@param lhs string
+--- @param lhs string|"ALL"
 function M.get(lhs)
-  return require("native-packer.key.core").get(lhs)
+  require("native-packer.key.core").get(lhs)
 end
 
 return M

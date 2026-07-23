@@ -1,16 +1,20 @@
-local M = {}
+local M = {
+  resets = {},
+}
 
-function M.normalize(data)
-  local keys = data.key
-  if type(keys) ~= "table" then
-    data.key = {}
-  end
+--- @param source any
+--- @return table
+function M.normalize(source)
+  return source or {}
 end
 
-function M.register(plugin)
-  local keys = plugin.key
-  plugin.key_resets = {}
-  require("native-packer.key").add(keys, function(mode, lhs, rhs, opts, extra)
+--- @param data NativePacker.Plugin.Data
+--- @param loader fun(data: NativePacker.Plugin.Data)
+function M.register(data, loader)
+  --- @type fun()[]
+  local resets = {}
+  M.resets[data.repo or data.name] = resets
+  require("native-packer.key").add(data.key, function(mode, lhs, rhs, opts, extra)
     local reset = function()
       local _rhs = rhs
       if not extra.expr and type(rhs) == "function" then
@@ -20,27 +24,28 @@ function M.register(plugin)
       end
       pcall(vim.keymap.set, mode, lhs, rhs, opts)
     end
-    table.insert(plugin.key_resets, reset)
+    table.insert(resets, reset)
     local handle = function()
-      if extra.depend then
-        local data = {
-          depend = extra.depend,
-        }
-        require("native-packer.depend").normalize(data)
-        require("native-packer.core").load(data.depend)
-      end
-      require("native-packer.core").load({ plugin.name })
+      loader(data)
       vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Ignore>" .. lhs, true, true, true), "i", false)
     end
     pcall(vim.keymap.set, mode, lhs, handle, vim.tbl_extend("force", opts, { expr = true }))
   end)
 end
 
-function M.clean(plugin)
-  for _, callback in ipairs(plugin.key_resets or {}) do
+--- @param data NativePacker.Plugin.Data
+function M.clean(data)
+  local resets = M.resets[data.repo or data.name]
+  for _, callback in ipairs(resets or {}) do
     callback()
   end
-  plugin.key_resets = {}
+  M.resets[data.repo or data.name] = nil
+end
+
+--- @param key NativePacker.Key
+--- @return boolean
+function M.has(key)
+  return vim.tbl_count(key) > 0
 end
 
 return M

@@ -1,278 +1,510 @@
 local M = {}
 local GITHUB_URL = "https://github.com/"
-M.plugin_map = {}
-M._plugin_map = {}
-M.local_plugin_map = {}
-M.repo_plugin_map = {}
-M.loaded_plugins = {}
-M._plugin_key_map = {}
 local Handler = require("native-packer.handler")
-local Depend = require("native-packer.depend")
+local Hook = require("native-packer.hook")
 
----@alias NativePacker.PluginSource
----|string
----|NativePacker.PluginSpec[]
----|NativePacker.PluginSource[]
+--- @type table<string, vim.pack.Spec>
+M.spec_map = {}
+--- @type table<string, NativePacker.Plugin.Data>
+M.spec_data_map = {}
 
----@class NativePacker.PluginSpecHandlers
----@field event? string|string[]
----@field cmd? string|string[]
----@field ft? string|string[]
----@field colorscheme? string|string[]
----@field key? NativePacker.KeySpec
+--- @class NativePacker.Plugin.Spec.Hooks
+--- @field config? fun()
+--- @field run? fun(data: vim.event.packchanged.data)
 
----@class NativePacker.PluginSpecHooks
----@field config? fun()
----@field run? fun(plugin_data: {spec: vim.pack.Spec, path: string})
+--- @class NativePacker.Plugin.Data.Hooks
+--- @field config? fun()
+--- @field run? fun(data: vim.event.packchanged.data)
 
----@class NativePacker.PluginSpec:NativePacker.PluginSpecHandlers,NativePacker.PluginSpecHooks
----@field [1] string
----@field name? string
----@field depend? string|string[]|NativePacker.PluginSpec[]
----@field enabled? boolean|fun():boolean
----@field lazy? boolean
----@field priority? integer
----@field version? string|vim.VersionRange
+--- @class NativePacker.Plugin.Spec.Event.Spec
+--- @field [integer] vim.api.keyset.events|NativePacker.Plugin.Spec.Event.Spec
+--- @field condition? fun(): boolean
+--- @field pattern? string|string[]
 
-local function is_local_plugin(data)
-  return not data.repo and type(data.name) == "string"
+--- @class NativePacker.Plugin.Data.Event.Spec
+--- @field [1] vim.api.keyset.events
+--- @field condition? fun():boolean
+--- @field pattern? string|string[]
+
+--- @alias NativePacker.Plugin.Spec.Event string|NativePacker.Plugin.Spec.Event.Spec
+--- @alias NativePacker.Plugin.Data.Event NativePacker.Plugin.Data.Event.Spec[]
+
+--- @class NativePacker.Plugin.Spec.Handlers
+--- @field event? NativePacker.Plugin.Spec.Event
+--- @field cmd? string|string[]
+--- @field ft? string|string[]
+--- @field colorscheme? string|string[]
+--- @field key? NativePacker.Key
+
+--- @class NativePacker.Plugin.Data.Handlers
+--- @field event NativePacker.Plugin.Data.Event
+--- @field cmd string[]
+--- @field ft string[]
+--- @field colorscheme string[]
+--- @field key NativePacker.Key
+
+--- @class NativePacker.Plugin.Spec.Base
+--- @field name? string
+--- @field depend? string|string[]
+--- @field enabled? boolean|fun():boolean
+--- @field lazy? boolean
+--- @field priority? integer
+--- @field version? string|vim.VersionRange
+--- @field condition? fun():boolean
+
+--- @class NativePacker.Plugin.Data.Base
+--- @field name? string
+--- @field depend string[]
+--- @field enabled boolean|fun():boolean
+--- @field lazy boolean
+--- @field priority integer
+--- @field version? string|vim.VersionRange
+--- @field condition? fun():boolean
+--- @field loaded? boolean
+
+--- @class NativePacker.Plugin.LocalSpec: NativePacker.Plugin.Spec.Base, NativePacker.Plugin.Spec.Hooks, NativePacker.Plugin.Spec.Handlers
+--- @class NativePacker.Plugin.LocalData: NativePacker.Plugin.Data.Base, NativePacker.Plugin.Data.Hooks, NativePacker.Plugin.Data.Handlers
+
+--- @class NativePacker.Plugin.RepoSpec: NativePacker.Plugin.LocalSpec
+--- @field [1] string
+
+--- @class NativePacker.Plugin.RepoData: NativePacker.Plugin.LocalData
+--- @field repo string
+
+--- @alias NativePacker.Plugin.Data NativePacker.Plugin.LocalData|NativePacker.Plugin.RepoData
+--- @alias NativePacker.Plugin.Spec string|NativePacker.Plugin.RepoSpec|NativePacker.Plugin.LocalSpec
+--- @alias NativePacker.Plugin (NativePacker.Plugin.Spec[]|NativePacker.Plugin.Spec)[]
+
+--- @param source any
+--- @param plugin_name string
+--- @return string[]
+local function normalize_depend(source, plugin_name)
+  --- @type string[]
+  local depend = {}
+  if type(source) ~= "table" then
+    source = { source }
+  end
+  for _, value in ipairs(source) do
+    if type(value) == "string" then
+      depend[#depend + 1] = value
+    else
+      vim.api.nvim_echo({
+        {
+          "NativePackerWarn: [" .. plugin_name .. "].depend[integer] expected string, but got" .. type("value") .. "\n",
+          "WarningMsg",
+        },
+      }, true)
+    end
+  end
+
+  return depend
 end
 
----@param plugin_spec NativePacker.PluginSpec
----@return vim.pack.Spec
-local function create_spec(plugin_spec)
-  local spec = {}
+--- @param lazy boolean|nil
+--- @param has_handler boolean
+--- @param plugin_name string
+--- @return boolean
+local function normalize_lazy(lazy, has_handler, plugin_name)
+  if lazy ~= nil and type(lazy) ~= "boolean" then
+    vim.api.nvim_echo({
+      {
+        "NativePackerWarn: [" .. plugin_name .. "].lazy expected boolen, but got " .. type(lazy) .. "\n",
+        "WarningMsg",
+      },
+    }, true)
+    lazy = false
+  elseif lazy == nil then
+    if has_handler then
+      lazy = true
+    else
+      lazy = false
+    end
+  end
 
-  local data = {
-    startup = nil,
-    lazy = nil,
-    depend = plugin_spec.depend,
-    enabled = plugin_spec.enabled,
-    priority = plugin_spec.priority or 100,
-    event = plugin_spec.event,
-    cmd = plugin_spec.cmd,
-    ft = plugin_spec.ft,
-    colorscheme = plugin_spec.colorscheme,
-    key = plugin_spec.key,
-    config = plugin_spec.config,
-    run = plugin_spec.run,
-    name = plugin_spec.name,
+  return lazy
+end
+
+--- @param priority any
+--- @param plugin_name string
+--- @return integer
+local function normalize_priority(priority, plugin_name)
+  if type(priority) == "number" or priority == nil then
+    return priority or 100
+  end
+  vim.api.nvim_echo({
+    {
+      "NativePackerWarn: [" .. plugin_name .. "].priority expected integer, but got " .. type(priority) .. "\n",
+      "WarningMsg",
+    },
+  }, true)
+  return 100
+end
+
+--- @param enabled any
+--- @param plugin_name string
+--- @return boolean|fun():boolean
+local function normalize_enabled(enabled, plugin_name)
+  if type(enabled) ~= "boolean" and type(enabled) ~= "function" and enabled ~= nil then
+    vim.api.nvim_echo({
+      {
+        "NativePackerWarn: ["
+          .. plugin_name
+          .. "].enabled expected boolean|fun():boolean, but got "
+          .. type(enabled)
+          .. "\n",
+        "WarningMsg",
+      },
+    }, true)
+    enabled = true
+  end
+  return enabled == nil and true or enabled
+end
+
+--- @param name any
+--- @param plugin_name string
+--- @return string|nil
+local function normalize_name(name, plugin_name)
+  if type(name) == "string" or name == nil then
+    return name
+  end
+  vim.api.nvim_echo({
+    {
+      "NativePackerWarn: [" .. plugin_name .. "].name expected string, but got " .. type(name) .. "\n",
+      "WarningMsg",
+    },
+  }, true)
+  return nil
+end
+
+--- @param version any
+--- @param plugin_name string
+--- @return nil|string|vim.VersionRange
+local function normalize_version(version, plugin_name)
+  if (type(version) == "table" and version.from and version.has) or type(version) == "string" or version == nil then
+    return version
+  end
+  vim.api.nvim_echo({
+    {
+      "NativePackerWarn: ["
+        .. plugin_name
+        .. "].version expected vim.VersionRange|string, but got "
+        .. type(version)
+        .. "\n",
+      "WarningMsg",
+    },
+  }, true)
+  return nil
+end
+
+--- @param condition any
+--- @param plugin_name string
+--- @return nil|fun():boolean
+local function normalize_condition(condition, plugin_name)
+  if type(condition) == "function" or condition == nil then
+    return condition
+  end
+  vim.api.nvim_echo({
+    {
+      "NativePackerWarn: [" .. plugin_name .. "].condition expected function, but got " .. type(condition) .. "\n",
+      "WarningMsg",
+    },
+  }, true)
+  return nil
+end
+
+--- @param plugin_spec NativePacker.Plugin.RepoSpec|NativePacker.Plugin.LocalSpec
+--- @return vim.pack.Spec?
+local function normalize_spec(plugin_spec)
+  if plugin_spec[1] and type(plugin_spec[1]) ~= "string" then
+    vim.api.nvim_echo({
+      {
+        "NativePackerWarn: Remote Plugin: src = plugin[1]: 'src' is not a string, this remote plugin will be ignore!!!\n",
+        "WarningMsg",
+      },
+      {
+        "source: " .. vim.inspect(plugin_spec),
+        "WarningMsg",
+      },
+    }, true)
+    return
+  end
+
+  if #plugin_spec == 0 and type(plugin_spec.name) ~= "string" then
+    vim.api.nvim_echo({
+      {
+        "NativePackerWarn: Local Plugin: name = plugin.name, 'name' is not a string, this local plugin will be ignore!!!\n",
+        "WarningMsg",
+      },
+      {
+        "source: " .. vim.inspect(plugin_spec)("WarningMsg"),
+      },
+    }, true)
+    return
+  end
+  local plugin_name = plugin_spec[1] or plugin_spec.name
+
+  local hooks = Hook.normalize(plugin_spec)
+  local handlers = Handler.normalize(plugin_spec)
+  --- @type NativePacker.Plugin.Data.Base
+  local base = {
+    priority = normalize_priority(plugin_spec.priority, plugin_name),
+    enabled = normalize_enabled(plugin_spec.enabled, plugin_name),
+    depend = normalize_depend(plugin_spec.depend, plugin_name),
+    name = normalize_name(plugin_spec.name, plugin_name),
+    version = normalize_version(plugin_spec.version, plugin_name),
+    condition = normalize_condition(plugin_spec.condition, plugin_name),
+    lazy = normalize_lazy(plugin_spec.lazy, Handler.has(handlers), plugin_name),
   }
-  spec.data = data
-  Handler.normalize(data)
-  Depend.normalize(data)
-  if type(data.priority) ~= "number" then
-    data.priority = 100
-  end
-  if type(data.name) ~= "string" then
-    data.name = nil
-  end
 
-  if
-    #data.cmd > 0
-    or #spec.data.ft > 0
-    or #spec.data.event > 0
-    or #spec.data.colorscheme > 0
-    or vim.tbl_count(spec.data.key) > 0
-  then
-    data.lazy = true
-  end
+  local data = vim.tbl_deep_extend("force", base, hooks, handlers)
 
-  if plugin_spec.lazy == false then
-    data.lazy = false
-  end
-
-  if not data.lazy then
-    data.startup = true
-  end
+  --- @type vim.pack.Spec
+  ---@diagnostic disable-next-line: missing-fields
+  local spec = {
+    version = data.version,
+    name = data.name,
+    data = data,
+  }
 
   if plugin_spec[1] then
-    spec.src = GITHUB_URL .. plugin_spec[1]
-    spec.version = plugin_spec.version
-    spec.name = plugin_spec.name
-    spec.data.src = spec.src
-    spec.data.repo = plugin_spec[1]
-    spec.data.version = spec.version
-    M._plugin_key_map[data.repo] = data.key
-    data.key = nil
+    local repo = plugin_spec[1]
+    local src = GITHUB_URL .. repo
+    spec.src = src
+    data.repo = repo
   end
 
   return spec
 end
 
----@param source NativePacker.PluginSource
----@return NativePacker.PluginSpec[]
-local function normalize_plugin_specs(source)
-  local plugin_specs = {}
+--- @param source NativePacker.Plugin
+--- @return vim.pack.Spec[]
+local function normalize_specs(source)
+  --- @type vim.pack.Spec[]
+  local specs = {}
 
-  local function run(s)
-    if type(s) == "string" then
-      table.insert(plugin_specs, { s })
-    elseif type(s) == "table" then
-      if #s == 1 and type(s[1]) == "string" then
-        table.insert(plugin_specs, s)
-      elseif s.name then
-        table.insert(plugin_specs, s)
+  --- @type table<string, vim.pack.Spec>
+  local lazy_specs = {}
+  --- @type table<string, boolean>
+  local marked_startups = {}
+
+  --- @param data NativePacker.Plugin.Data
+  local function mark_depend_startup(data)
+    for _, dp in ipairs(data.depend) do
+      if lazy_specs[dp] then
+        local depend_spec = lazy_specs[dp]
+        depend_spec.data.lazy = false
+        mark_depend_startup(depend_spec.data)
       else
-        for _, v in ipairs(s) do
-          run(v)
-        end
+        marked_startups[dp] = true
       end
     end
   end
-  run(source)
-  return plugin_specs
-end
 
-local function sort_by_priority(list, get_item)
-  local priority_map = {}
-  local priority_list = {}
-  local items = {}
+  --- @param plugin_spec NativePacker.Plugin.RepoSpec|NativePacker.Plugin.LocalSpec
+  local function normalize(plugin_spec)
+    local spec = normalize_spec(plugin_spec)
+    local data = spec.data --[[@as NativePacker.Plugin.Data]]
+    local id = data.repo or data.name
 
-  for _, value in ipairs(list) do
-    local item, priority = get_item(value)
-    if not priority_map[priority] then
-      priority_map[priority] = { item, priority = priority }
-      table.insert(priority_list, priority_map[priority])
+    if marked_startups[id] then
+      data.lazy = false
+    end
+
+    if data.lazy then
+      lazy_specs[data.repo or data.name] = spec
     else
-      table.insert(priority_map[priority], item)
+      mark_depend_startup(data)
+    end
+
+    if spec then
+      specs[#specs + 1] = spec
+      M.spec_map[spec.data.repo or spec.data.name] = spec
     end
   end
-  table.sort(priority_list, function(a, b)
-    return a.priority > b.priority
-  end)
-  for _, v in ipairs(priority_list) do
-    for _, item in ipairs(v) do
-      table.insert(items, item)
+
+  --- @param s NativePacker.Plugin
+  local function iter(s)
+    for _, value in ipairs(s) do
+      if type(value) == "table" then
+        if #value == 1 then
+          if type(value[1]) ~= "table" then
+            normalize(value)
+          end
+        elseif #value == 0 then
+          if value.name then
+            normalize(value)
+          else
+          end
+        else
+          iter(value)
+        end
+      else
+        local repo = value --[[@as string]]
+        normalize({ repo })
+      end
     end
   end
-  return items
+  iter(source)
+  return specs
 end
 
-local function low_priority_depend_up_plugin(plugin_map, spec, specs, insert)
-  if spec.data.sorted then
+--- @param spec vim.pack.Spec
+--- @return vim.pack.Spec[]
+local function sort_depend_specs(spec)
+  local data = spec.data --[[@as NativePacker.Plugin.Data]]
+  --- @type vim.pack.Spec[]
+  local depend_specs = {}
+  for _, name in ipairs(data.depend) do
+    local depend_spec = M.spec_map[name]
+    if depend_spec then
+      table.insert(depend_specs, depend_spec)
+    end
+  end
+  table.sort(depend_specs, function(a, b)
+    return a.data.priority < b.data.priority
+  end)
+  data.depend = {}
+  for _, depend_spec in ipairs(depend_specs) do
+    table.insert(data.depend, 1, depend_spec.data.repo or depend_spec.data.name)
+  end
+  return depend_specs
+end
+
+--- @param specs vim.pack.Spec[]
+--- @return vim.pack.Spec[]
+local function sort_specs(specs)
+  table.sort(specs, function(a, b)
+    return a.data.priority > b.data.priority
+  end)
+
+  --- @type table<string, boolean>
+  local sorted_spec_map = {}
+  --- @type vim.pack.Spec[]
+  local sorted_specs = {}
+
+  --- @param spec vim.pack.Spec
+  --- @param start integer
+  local function promote_depend_spec(spec, start)
+    local depend_specs = sort_depend_specs(spec)
+    for _, depend_spec in ipairs(depend_specs) do
+      local key = depend_spec.data.repo or depend_spec.data.name
+      if not sorted_spec_map[key] then
+        sorted_spec_map[key] = true
+        table.insert(sorted_specs, start, depend_spec)
+        promote_depend_spec(depend_spec, start)
+      end
+    end
+  end
+
+  local start = 1
+  for _, spec in ipairs(specs) do
+    local data = spec.data --[[@as NativePacker.Plugin.Data]]
+    local key = data.repo or data.name
+    if not sorted_spec_map[key] then
+      sorted_spec_map[key] = true
+      table.insert(sorted_specs, start, spec)
+      if not spec.data.lazy then
+        promote_depend_spec(spec, start)
+      end
+      start = #sorted_specs + 1
+    end
+  end
+
+  return sorted_specs
+end
+
+--- @param source NativePacker.Plugin
+--- @return vim.pack.Spec[]
+local function build_specs(source)
+  return sort_specs(normalize_specs(source))
+end
+
+--- @param data NativePacker.Plugin.Data
+local function is_local_spec(data)
+  return not data.repo and type(data.name) == "string"
+end
+
+--- @param specs vim.pack.Spec[]
+--- @return vim.pack.Spec[], table<string, vim.pack.Spec[]>, table<string, vim.pack.Spec[]>
+local function filter_repo_specs(specs)
+  --- @type vim.pack.Spec[]
+  local repo_specs = {}
+  --- @type vim.pack.Spec[]
+  local local_specs_segment = {}
+  --- @type table<string, vim.pack.Spec[]>
+  local skipped_local_spec_map = {}
+  --- @type table<string, vim.pack.Spec[]>
+  local remaining_local_spec_map = {}
+
+  --- @param map table<string, vim.pack.Spec[]>
+  --- @param name string
+  local function track(map, name)
+    map[name] = local_specs_segment
+    local_specs_segment = {}
+  end
+
+  --- @type vim.pack.Spec|nil
+  local pre
+  for i, spec in ipairs(specs) do
+    if is_local_spec(spec.data) then
+      local_specs_segment[#local_specs_segment + 1] = spec
+      if i == #specs then
+        local last_repo_spec_data = repo_specs[#repo_specs].data --[[@as NativePacker.Plugin.Data]]
+        track(remaining_local_spec_map, last_repo_spec_data.repo)
+      end
+    else
+      if pre and is_local_spec(pre.data) then
+        track(skipped_local_spec_map, spec.data.repo)
+      end
+      repo_specs[#repo_specs + 1] = spec
+    end
+    pre = spec
+  end
+
+  return repo_specs, skipped_local_spec_map, remaining_local_spec_map
+end
+
+--- @param data NativePacker.Plugin.Data
+local function load(data)
+  if data.loaded then
     return
   end
-  spec.data.startup = true
-  for _, dp in ipairs(spec.data.depend) do
-    local dp_spec = plugin_map[dp]
-    low_priority_depend_up_plugin(plugin_map, dp_spec, specs, insert)
-  end
-  insert(spec)
-end
 
---- @return NativePacker.PluginSpec[]
-local function get_specs_sort_by_depend_priority(plugin_map, specs)
-  local _specs = {}
-  local function insert(spec)
-    spec.data.sorted = true
-    table.insert(_specs, spec)
-    spec.data.index = #_specs
-  end
-  for _, spec in ipairs(specs) do
-    if spec.data.startup then
-      low_priority_depend_up_plugin(plugin_map, spec, _specs, insert)
-    else
-      insert(spec)
-    end
-  end
-
-  return _specs
-end
-
----@param specs NativePacker.PluginSpec[]
----@return NativePacker.PluginSpec[]
-local function filter_repo_specs(specs)
-  -- Fix: Invalid 'data': Cannot convert given Lua table
-  return vim
-    .iter(specs)
-    :filter(function(spec)
-      return not is_local_plugin(spec.data)
-    end)
-    :totable()
-end
-
----@param source NativePacker.PluginSource
----@return vim.pack.Spec[]
----@return vim.pack.Spec[]
-local function build_specs(source)
-  local plugin_specs = normalize_plugin_specs(source)
-  local plugin_map = {}
-  local specs = sort_by_priority(plugin_specs, function(plugin_spec)
-    local spec = create_spec(plugin_spec)
-    plugin_map[spec.data.repo or spec.data.name] = spec
-    return spec, spec.data.priority
-  end)
-  local _specs = {}
-  for _, spec in ipairs(specs) do
-    spec.data.depend = sort_by_priority(spec.data.depend, function(dp)
-      if not plugin_map[dp] then
-        local sp = create_spec({ dp })
-        plugin_map[dp] = sp
-        sp.data.startup = false
-        sp.data.lazy = true
-        table.insert(_specs, sp)
+  --- @param d NativePacker.Plugin.Data
+  local function load_depend(d)
+    for _, depend in ipairs(d.depend) do
+      local depend_spec_data = M.spec_data_map[depend]
+      if depend_spec_data then
+        load(depend_spec_data)
+      else
+        vim.api.nvim_echo({
+          {
+            "NativePackerError: Loading ["
+              .. (d.repo or d.name)
+              .. "] plugin depend error: Can't find ["
+              .. depend
+              .. "] spec!!!\n",
+            "ErrorMsg",
+          },
+        }, true)
       end
-      return dp, plugin_map[dp] and plugin_map[dp].data.priority or 100
-    end)
-  end
-  specs = get_specs_sort_by_depend_priority(plugin_map, vim.list_extend(specs, _specs))
-  return specs, filter_repo_specs(specs)
-end
-
-local function load_depend(data)
-  for _, name in ipairs(data.depend) do
-    local dp = M._plugin_map[name]
-    if not dp.loaded then
-      M.load({ dp.name })
     end
   end
+  load_depend(data)
+  Handler.clean(data)
+  vim.cmd.packadd(data.name)
+  if data.config then
+    data.config()
+  end
+  data.loaded = true
 end
 
+--- @param data NativePacker.Plugin.Data
 local function packadd(data)
-  if is_local_plugin(data) then
-    M.local_plugin_map[data.name] = data
-  else
-    M.repo_plugin_map[data.name] = data
-  end
-  M.plugin_map[data.name] = data
-  M._plugin_map[data.repo or data.name] = data
-
-  if data.startup then
-    require("native-packer.key").add(data.key or {})
-    M.load({ data.name })
-  else
-    Handler.register(data)
-  end
-end
-
-local function create_skipped_packadd(all_specs)
-  local pre_index = 0
-
-  return function(data)
-    local current_index = data.index
-    if current_index > pre_index + 1 then
-      local skip_specs = vim.list_slice(all_specs, pre_index + 1, current_index - 1)
-      for _, spec in ipairs(skip_specs) do
-        packadd(spec.data)
-      end
-    end
-    pre_index = current_index
-  end
-end
-
-local function create_remaining_packadd(total, all_specs)
-  local current = 0
-  return function(data)
-    current = current + 1
-    if current == total then
-      if #all_specs > data.index then
-        local skip_specs = vim.list_slice(all_specs, data.index + 1, #all_specs)
-        for _, spec in ipairs(skip_specs) do
-          packadd(spec.data)
-        end
-      end
-    end
+  M.spec_data_map[data.repo or data.name] = data
+  Handler.register(data, load)
+  if not data.lazy then
+    load(data)
   end
 end
 
@@ -280,95 +512,39 @@ local function on_pack_changed()
   vim.api.nvim_create_autocmd("PackChanged", {
     pattern = "*",
     callback = function(e)
-      local p = e.data
-      local run_task = (p.spec.data or {}).run
-      if p.kind ~= "delete" and type(run_task) == "function" then
-        pcall(run_task, p)
+      local p = e.data --[[@as vim.event.packchanged.data]]
+      local run = (p.spec.data or {}).run
+      if p.kind ~= "delete" and type(run) == "function" then
+        run(p)
       end
     end,
   })
 end
 
---- @param source NativePacker.PluginSource
+--- @param source NativePacker.Plugin
 function M.add(source)
-  local specs, repo_specs = build_specs(source)
-  local skipped_packadd = create_skipped_packadd(specs)
-  local remaining_packadd = create_remaining_packadd(#repo_specs, specs)
+  local specs = build_specs(source or {})
+  local repo_specs, skipped_local_spec_map, remain_local_spec_map = filter_repo_specs(specs)
   on_pack_changed()
   vim.pack.add(repo_specs, {
     load = function(plug_data)
       local data = plug_data.spec.data
-      data.path = plug_data.path
       data.name = plug_data.spec.name
-      data.key = M._plugin_key_map[data.repo]
-      skipped_packadd(data)
+      local skipped_local_specs = skipped_local_spec_map[data.repo]
+      if skipped_local_specs then
+        for _, spec in ipairs(skipped_local_specs) do
+          packadd(spec.data)
+        end
+      end
       packadd(data)
-      remaining_packadd(data)
+      local remaining_local_specs = remain_local_spec_map[data.repo]
+      if remaining_local_specs then
+        for _, spec in ipairs(remaining_local_specs) do
+          packadd(spec.data)
+        end
+      end
     end,
   })
-end
-
----@param names string[]
-function M.load(names)
-  for _, name in ipairs(names) do
-    if type(name) == "string" then
-      local data = M.plugin_map[name]
-      if data then
-        Handler.clean(data)
-        if data.loaded then
-          return
-        end
-        load_depend(data)
-        pcall(vim.cmd.packadd, data.name)
-        if data.config and type(data.config) == "function" then
-          data.config()
-        end
-        data.loaded = true
-        table.insert(M.loaded_plugins, data)
-      end
-    end
-  end
-end
-
----@param names string[]
----@param opts? vim.pack.keyset.get
----@return vim.pack.PlugData[]
-function M.get(names, opts)
-  local ok, v = pcall(vim.pack.get, names, opts)
-  local results = ok and v or {}
-  if ok then
-    for _, result in ipairs(results) do
-      result.spec.data.key = M._plugin_key_map[result.spec.data.repo]
-    end
-  end
-  return results
-end
-
----@param names string[]
-function M.del(names)
-  vim.pack.del(names, { force = true })
-end
-
----@param names? string[]
----@param opts? vim.pack.keyset.update
-function M.update(names, opts)
-  vim.pack.update(names, opts)
-end
-
-function M.get_all_repo_plugin_names()
-  return vim.tbl_keys(M.repo_plugin_map)
-end
-
-function M.get_all_plugin_names()
-  return vim.list_extend(vim.tbl_keys(M.repo_plugin_map), vim.tbl_keys(M.local_plugin_map))
-end
-
-function M.get_loaded_plugin_names()
-  local names = {}
-  for _, data in ipairs(M.loaded_plugins) do
-    table.insert(names, data.name)
-  end
-  return names
 end
 
 return M
