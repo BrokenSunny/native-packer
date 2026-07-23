@@ -242,13 +242,17 @@ local function normalize_spec(plugin_spec)
     return
   end
   local plugin_name = plugin_spec[1] or plugin_spec.name
+  local enabled = normalize_enabled(plugin_spec.enabled, plugin_name)
+  if not enabled then
+    return
+  end
 
   local hooks = Hook.normalize(plugin_spec)
   local handlers = Handler.normalize(plugin_spec)
   --- @type NativePacker.Plugin.Data.Base
   local base = {
     priority = normalize_priority(plugin_spec.priority, plugin_name),
-    enabled = normalize_enabled(plugin_spec.enabled, plugin_name),
+    enabled = enabled,
     depend = normalize_depend(plugin_spec.depend, plugin_name),
     name = normalize_name(plugin_spec.name, plugin_name),
     version = normalize_version(plugin_spec.version, plugin_name),
@@ -303,6 +307,9 @@ local function normalize_specs(source)
   --- @param plugin_spec NativePacker.Plugin.RepoSpec|NativePacker.Plugin.LocalSpec
   local function normalize(plugin_spec)
     local spec = normalize_spec(plugin_spec)
+    if not spec then
+      return
+    end
     local data = spec.data --[[@as NativePacker.Plugin.Data]]
     local id = data.repo or data.name
 
@@ -316,10 +323,8 @@ local function normalize_specs(source)
       mark_depend_startup(data)
     end
 
-    if spec then
-      specs[#specs + 1] = spec
-      M.spec_map[spec.data.repo or spec.data.name] = spec
-    end
+    specs[#specs + 1] = spec
+    M.spec_map[spec.data.repo or spec.data.name] = spec
   end
 
   --- @param s NativePacker.Plugin
