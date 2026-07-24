@@ -3,10 +3,15 @@ local GITHUB_URL = "https://github.com/"
 local Handler = require("native-packer.handler")
 local Hook = require("native-packer.hook")
 
+-- Use a short src to record source plugin spec to find depend spec, for sorting
 --- @type table<string, vim.pack.Spec>
-M.spec_map = {}
+M.plugin_specs_by_short_src = {}
+-- Use a short src to record plugin spec data to find depend spec data, for loading
 --- @type table<string, NativePacker.Plugin.Data>
-M.spec_data_map = {}
+M.plugin_spec_datas_by_short_src = {}
+-- Use plugin name to record plugin spec data for loading
+--- @type table<string, NativePacker.Plugin.Data>
+M.plugin_spec_datas_by_plugin_name = {}
 
 --- @class NativePacker.Plugin.Spec.Hooks
 --- @field config? fun()
@@ -260,7 +265,7 @@ local function normalize_spec(plugin_spec)
     lazy = normalize_lazy(plugin_spec.lazy, Handler.has(handlers), plugin_name),
   }
 
-  local data = vim.tbl_deep_extend("force", base, hooks, handlers)
+  local data = vim.tbl_deep_extend("force", base, hooks, handlers) --[[@as NativePacker.Plugin.Data]]
 
   --- @type vim.pack.Spec
   ---@diagnostic disable-next-line: missing-fields
@@ -324,7 +329,7 @@ local function normalize_specs(source)
     end
 
     specs[#specs + 1] = spec
-    M.spec_map[spec.data.repo or spec.data.name] = spec
+    M.plugin_specs_by_short_src[spec.data.repo or spec.data.name] = spec
   end
 
   --- @param s NativePacker.Plugin
@@ -360,7 +365,7 @@ local function sort_depend_specs(spec)
   --- @type vim.pack.Spec[]
   local depend_specs = {}
   for _, name in ipairs(data.depend) do
-    local depend_spec = M.spec_map[name]
+    local depend_spec = M.plugin_specs_by_short_src[name]
     if depend_spec then
       table.insert(depend_specs, depend_spec)
     end
@@ -470,7 +475,7 @@ local function filter_repo_specs(specs)
 end
 
 --- @param data NativePacker.Plugin.Data
-local function load(data)
+function load(data)
   if data.loaded then
     return
   end
@@ -478,7 +483,7 @@ local function load(data)
   --- @param d NativePacker.Plugin.Data
   local function load_depend(d)
     for _, depend in ipairs(d.depend) do
-      local depend_spec_data = M.spec_data_map[depend]
+      local depend_spec_data = M.plugin_spec_datas_by_short_src[depend]
       if depend_spec_data then
         load(depend_spec_data)
       else
@@ -506,7 +511,8 @@ end
 
 --- @param data NativePacker.Plugin.Data
 local function packadd(data)
-  M.spec_data_map[data.repo or data.name] = data
+  M.plugin_spec_datas_by_short_src[data.repo or data.name] = data
+  M.plugin_spec_datas_by_plugin_name[data.name] = data
   Handler.register(data, load)
   if not data.lazy then
     load(data)
@@ -550,6 +556,16 @@ function M.add(source)
       end
     end,
   })
+end
+
+--- @param plugin_names string[]
+function M.load(plugin_names)
+  for _, name in ipairs(plugin_names) do
+    local data = M.plugin_spec_datas_by_plugin_name[name]
+    if data then
+      load(data)
+    end
+  end
 end
 
 return M
