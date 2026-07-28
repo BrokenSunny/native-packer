@@ -475,7 +475,7 @@ local function filter_repo_specs(specs)
 end
 
 --- @param data NativePacker.Plugin.Data
-function load(data)
+local function load(data)
   if data.loaded then
     return
   end

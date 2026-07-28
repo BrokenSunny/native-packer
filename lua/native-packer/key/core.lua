@@ -16,9 +16,9 @@ local M = {
 local EVENT_GROUP_NAME = "NativePacker.key:event"
 
 -- stylua: ignore
-local KEYMAP_SET_OPTS = { noremap = true, nowait = true, silent = true, script = true, expr = true, unique = true, callback = true, desc = true, replace_keycodes = true, buffer = true, remap = true, }
+local KEYMAP_SET_OPTS = { noremap = true, nowait = true, silent = true, script = true, expr = true, unique = true, callback = true, desc = true, replace_keycodes = true, buf = true, remap = true, }
 -- stylua: ignore
-local KEYMAP_DEL_OPTS = { buffer = true, }
+local KEYMAP_DEL_OPTS = { buf = true, }
 
 --- @param where table
 --- @param lhs any
@@ -256,10 +256,10 @@ local function set_keymap(where, lhs, rhs, mode, opts, extra, set)
 
   if extra.ft or extra.exclude_ft then
     collect_filetype_keymap(where, M.filetypes, extra.ft, function(buffer)
-      set(mode, lhs, rhs, vim.tbl_extend("force", opts, { buffer = buffer }), extra)
+      set(mode, lhs, rhs, vim.tbl_extend("force", opts, { buf = buffer }), extra)
     end)
     collect_filetype_keymap(where, M.exclude_filetypes, extra.exclude_ft, function(buffer)
-      set(mode, lhs, rhs, vim.tbl_extend("force", opts, { buffer = buffer }), extra)
+      set(mode, lhs, rhs, vim.tbl_extend("force", opts, { buf = buffer }), extra)
     end)
     return
   end
