@@ -254,11 +254,8 @@ local function set_keymap(where, lhs, rhs, mode, opts, extra, set)
   set = set or _set
   collect_keymap(lhs, rhs, mode, extra)
 
-  if extra.ft or extra.exclude_ft then
+  if extra.ft then
     collect_filetype_keymap(where, M.filetypes, extra.ft, function(buffer)
-      set(mode, lhs, rhs, vim.tbl_extend("force", opts, { buf = buffer }), extra)
-    end)
-    collect_filetype_keymap(where, M.exclude_filetypes, extra.exclude_ft, function(buffer)
       set(mode, lhs, rhs, vim.tbl_extend("force", opts, { buf = buffer }), extra)
     end)
     return
@@ -268,6 +265,15 @@ local function set_keymap(where, lhs, rhs, mode, opts, extra, set)
     collect_event_keymap(where, extra.event, function()
       set(mode, lhs, rhs, opts, extra)
     end)
+    return
+  end
+
+  if extra.exclude_ft then
+    collect_filetype_keymap(where, M.exclude_filetypes, extra.exclude_ft, function(buffer)
+      -- For excluded filetypes, we set the keymap to itself to effectively disable it in that buffer
+      _set(mode, lhs, lhs, { buf = buffer }, extra)
+    end)
+    set(mode, lhs, rhs, opts, extra)
     return
   end
 
@@ -355,19 +361,15 @@ local function create_hook()
         opts.pattern = "*"
         opts.callback = function(ev)
           local filetype = vim.bo.filetype
-          vim.schedule(function()
-            if M.exclude_filetypes[filetype] then
-              return
-            end
-            for _, cb in ipairs(M.filetypes[filetype] or {}) do
+          if M.exclude_filetypes[filetype] then
+            for _, cb in ipairs(M.exclude_filetypes[filetype] or {}) do
               cb(ev.buf)
             end
-            for _, cbs in pairs(M.exclude_filetypes) do
-              for _, cb in ipairs(cbs) do
-                cb(ev.buf)
-              end
-            end
-          end)
+            return
+          end
+          for _, cb in ipairs(M.filetypes[filetype] or {}) do
+            cb(ev.buf)
+          end
         end
       else
         opts.callback = function()
