@@ -1,35 +1,16 @@
 local M = {}
 -- stylua: ignore
-local EVENTS = { "BufAdd", "BufCreate", "BufDelete", "BufEnter", "BufFilePost", "BufFilePre", "BufHidden", "BufLeave",
-  "BufNew", "BufNewFile", "BufRead", "BufReadCmd", "BufReadPost", "BufReadPre", "BufUnload", "BufWinEnter", "BufWinLeave",
-  "BufWipeout", "BufWrite", "BufWriteCmd", "BufWritePost", "BufWritePre", "ChanClose", "ChanInfo", "ChanOpen",
-  "CmdUndefined", "CmdlineChanged", "CmdlineEnter", "CmdlineLeave", "CmdlineLeavePre", "CmdwinEnter", "CmdwinLeave",
-  "ColorScheme", "ColorSchemePre", "CompleteChanged", "CompleteDone", "CompleteDonePre", "CursorHold", "CursorHoldI",
-  "CursorMoved", "CursorMovedC", "CursorMovedI", "DiagnosticChanged", "DiffUpdated", "DirChanged", "DirChangedPre",
-  "EncodingChanged", "ExitPre", "FileAppendCmd", "FileAppendPost", "FileAppendPre", "FileChangedRO", "FileChangedShell",
-  "FileChangedShellPost", "FileEncoding", "FileReadCmd", "FileReadPost", "FileReadPre", "FileType", "FileWriteCmd",
-  "FileWritePost", "FileWritePre", "FilterReadPost", "FilterReadPre", "FilterWritePost", "FilterWritePre", "FocusGained",
-  "FocusLost", "FuncUndefined", "GUIEnter", "GUIFailed", "InsertChange", "InsertCharPre", "InsertEnter", "InsertLeave",
-  "InsertLeavePre", "LspAttach", "LspDetach", "LspNotify", "LspProgress", "LspRequest", "LspTokenUpdate", "MarkSet",
-  "MenuPopup", "ModeChanged", "OptionSet", "PackChanged", "PackChangedPre", "Progress", "QuickFixCmdPost",
-  "QuickFixCmdPre", "QuitPre", "RecordingEnter", "RecordingLeave", "RemoteReply", "SafeState", "SearchWrapped",
-  "SessionLoadPost", "SessionLoadPre", "SessionWritePost", "SessionWritePre", "ShellCmdPost", "ShellFilterPost", "Signal",
-  "SourceCmd", "SourcePost", "SourcePre", "SpellFileMissing", "StdinReadPost", "StdinReadPre", "SwapExists", "Syntax",
-  "TabClosed", "TabClosedPre", "TabEnter", "TabLeave", "TabMoved", "TabNew", "TabNewEntered", "TermChanged", "TermClose",
-  "TermEnter", "TermLeave", "TermOpen", "TermRequest", "TermResponse", "TextChanged", "TextChangedI", "TextChangedP",
-  "TextChangedT", "TextPutPost", "TextPutPre", "TextYankPost", "UIEnter", "UILeave", "User", "VimEnter", "VimLeave",
-  "VimLeavePre", "VimResized", "VimResume", "VimSuspend", "WinClosed", "WinEnter", "WinLeave", "WinNew", "WinNewPre",
-  "WinResized", "WinScrolled", }
+local EVENTS = { "BufAdd", "BufCreate", "BufDelete", "BufEnter", "BufFilePost", "BufFilePre", "BufHidden", "BufLeave", "BufNew", "BufNewFile", "BufRead", "BufReadCmd", "BufReadPost", "BufReadPre", "BufUnload", "BufWinEnter", "BufWinLeave", "BufWipeout", "BufWrite", "BufWriteCmd", "BufWritePost", "BufWritePre", "ChanClose", "ChanInfo", "ChanOpen", "CmdUndefined", "CmdlineChanged", "CmdlineEnter", "CmdlineLeave", "CmdlineLeavePre", "CmdwinEnter", "CmdwinLeave", "ColorScheme", "ColorSchemePre", "CompleteChanged", "CompleteDone", "CompleteDonePre", "CursorHold", "CursorHoldI", "CursorMoved", "CursorMovedC", "CursorMovedI", "DiagnosticChanged", "DiffUpdated", "DirChanged", "DirChangedPre", "EncodingChanged", "ExitPre", "FileAppendCmd", "FileAppendPost", "FileAppendPre", "FileChangedRO", "FileChangedShell", "FileChangedShellPost", "FileEncoding", "FileReadCmd", "FileReadPost", "FileReadPre", "FileType", "FileWriteCmd", "FileWritePost", "FileWritePre", "FilterReadPost", "FilterReadPre", "FilterWritePost", "FilterWritePre", "FocusGained", "FocusLost", "FuncUndefined", "GUIEnter", "GUIFailed", "InsertChange", "InsertCharPre", "InsertEnter", "InsertLeave", "InsertLeavePre", "LspAttach", "LspDetach", "LspNotify", "LspProgress", "LspRequest", "LspTokenUpdate", "MarkSet", "MenuPopup", "ModeChanged", "OptionSet", "PackChanged", "PackChangedPre", "Progress", "QuickFixCmdPost", "QuickFixCmdPre", "QuitPre", "RecordingEnter", "RecordingLeave", "RemoteReply", "SafeState", "SearchWrapped", "SessionLoadPost", "SessionLoadPre", "SessionWritePost", "SessionWritePre", "ShellCmdPost", "ShellFilterPost", "Signal", "SourceCmd", "SourcePost", "SourcePre", "SpellFileMissing", "StdinReadPost", "StdinReadPre", "SwapExists", "Syntax", "TabClosed", "TabClosedPre", "TabEnter", "TabLeave", "TabMoved", "TabNew", "TabNewEntered", "TermChanged", "TermClose", "TermEnter", "TermLeave", "TermOpen", "TermRequest", "TermResponse", "TextChanged", "TextChangedI", "TextChangedP", "TextChangedT", "TextPutPost", "TextPutPre", "TextYankPost", "UIEnter", "UILeave", "User", "VimEnter", "VimLeave", "VimLeavePre", "VimResized", "VimResume", "VimSuspend", "WinClosed", "WinEnter", "WinLeave", "WinNew", "WinNewPre", "WinResized", "WinScrolled", }
 
 local MESSAGE = {
   not_available_pattern_type = function(plugin_name, t)
     return {
       {
         "NativePackerWarn: ["
-        .. plugin_name
-        .. "].event.pattern expected string, but got "
-        .. t
-        .. ". This config will be ignore!!!",
+          .. plugin_name
+          .. "].event.pattern expected string, but got "
+          .. t
+          .. ". This config will be ignore!!!",
         "WarningMsg",
       },
     }
@@ -38,10 +19,10 @@ local MESSAGE = {
     return {
       {
         "NativePackerWarn: ["
-        .. plugin_name
-        .. "].event.condition expected function, but got "
-        .. t
-        .. ". This config will be ignore!!!",
+          .. plugin_name
+          .. "].event.condition expected function, but got "
+          .. t
+          .. ". This config will be ignore!!!",
         "WarningMsg",
       },
     }
@@ -50,10 +31,10 @@ local MESSAGE = {
     return {
       {
         "NativePackerWarn: ["
-        .. plugin_name
-        .. "].event[integer] expected string, but got "
-        .. t
-        .. ". This config will be ignore!!!",
+          .. plugin_name
+          .. "].event[integer] expected string, but got "
+          .. t
+          .. ". This config will be ignore!!!",
         "WarningMsg",
       },
     }
@@ -62,11 +43,11 @@ local MESSAGE = {
     return {
       {
         "NativePackerWarn: ["
-        .. plugin_name
-        .. "].event[integer] expected vim.api.keyset.events, "
-        .. '"'
-        .. event_name
-        .. '" is not a available event!!!"',
+          .. plugin_name
+          .. "].event[integer] expected vim.api.keyset.events, "
+          .. '"'
+          .. event_name
+          .. '" is not a available event!!!"',
         "WarningMsg",
       },
     }
@@ -141,8 +122,8 @@ function M.normalize(spec)
 end
 
 --- @param data NativePacker.Plugin.Data
---- @param loader fun(data: NativePacker.Plugin.Data)
-function M.register(data, loader)
+--- @param load fun()
+function M.register(data, load)
   local events = data.event
   if #events == 0 then
     return
@@ -154,7 +135,7 @@ function M.register(data, loader)
       group = group,
       callback = function()
         -- vim.print(event[1] .. ": load " .. data.name)
-        loader(data)
+        load()
       end,
       pattern = event.pattern,
       once = true,

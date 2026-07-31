@@ -26,8 +26,8 @@ function M.normalize(spec)
 end
 
 --- @param data NativePacker.Plugin.Data
---- @param loader fun(data: NativePacker.Plugin.Data)
-function M.register(data, loader)
+--- @param load fun()
+function M.register(data, load)
   if #data.ft == 0 then
     return
   end
@@ -39,7 +39,7 @@ function M.register(data, loader)
       local ft = vim.o.ft
       if vim.list_contains(data.ft, ft) then
         -- vim.print(ft .. " filetype: load " .. data.name)
-        loader(data)
+        load()
         return true
       end
     end,

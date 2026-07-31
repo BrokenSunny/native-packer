@@ -28,8 +28,8 @@ function M.normalize(spec)
 end
 
 --- @param data NativePacker.Plugin.Data
---- @param loader fun(data: NativePacker.Plugin.Data)
-function M.register(data, loader)
+--- @param load fun()
+function M.register(data, load)
   local colorschemes = data.colorscheme
   if #colorschemes == 0 then
     return
@@ -42,7 +42,7 @@ function M.register(data, loader)
       local colorscheme = e.match
       if vim.list_contains(colorschemes, colorscheme) then
         -- vim.print(colorscheme .. ": load " .. data.name)
-        loader(data)
+        load()
         return true
       end
     end,

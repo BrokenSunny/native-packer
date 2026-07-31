@@ -21,17 +21,17 @@ function M.normalize(spec)
 end
 
 --- @param data NativePacker.Plugin.Data
---- @param loader fun(data: NativePacker.Plugin.Data)
-function M.register(data, loader)
+--- @param load fun()
+function M.register(data, load)
   if not data.lazy then
     require("native-packer.key").add(data.key)
     return
   end
-  cmd.register(data, loader)
-  ft.register(data, loader)
-  colorscheme.register(data, loader)
-  event.register(data, loader)
-  key.register(data, loader)
+  cmd.register(data, load)
+  ft.register(data, load)
+  colorscheme.register(data, load)
+  event.register(data, load)
+  key.register(data, load)
 end
 
 function M.clean(data)

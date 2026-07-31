@@ -27,8 +27,8 @@ function M.normalize(spec)
 end
 
 --- @param data NativePacker.Plugin.Data
---- @param loader fun(data: NativePacker.Plugin.Data)
-function M.register(data, loader)
+--- @param load fun()
+function M.register(data, load)
   for _, cmd in ipairs(data.cmd) do
     vim.api.nvim_create_user_command(cmd, function(event)
       local command = {
@@ -44,8 +44,8 @@ function M.register(data, loader)
       elseif event.range == 2 then
         command.range = { event.line1, event.line2 }
       end
-      -- vim.print(cmd .. ": load " .. data.name)
-      loader(data)
+
+      load()
 
       local info = vim.api.nvim_get_commands({})[cmd] or vim.api.nvim_buf_get_commands(0, {})[cmd]
       if not info then
@@ -62,7 +62,7 @@ function M.register(data, loader)
       range = true,
       nargs = "*",
       complete = function(_, line)
-        loader(data)
+        require("native-packer.core").packadd({ data.name })
         return vim.fn.getcompletion(line, "cmdline")
       end,
     })

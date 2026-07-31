@@ -66,6 +66,7 @@ M.plugin_spec_datas_by_plugin_name = {}
 --- @field version? string|vim.VersionRange
 --- @field condition? fun():boolean
 --- @field loaded? boolean
+--- @field packadded? boolean
 
 --- @class NativePacker.Plugin.LocalSpec: NativePacker.Plugin.Spec.Base, NativePacker.Plugin.Spec.Hooks, NativePacker.Plugin.Spec.Handlers
 --- @class NativePacker.Plugin.LocalData: NativePacker.Plugin.Data.Base, NativePacker.Plugin.Data.Hooks, NativePacker.Plugin.Data.Handlers
@@ -475,6 +476,15 @@ local function filter_repo_specs(specs)
 end
 
 --- @param data NativePacker.Plugin.Data
+local function packadd(data)
+  if data.packadded then
+    return
+  end
+  vim.cmd.packadd(data.name)
+  data.packadded = true
+end
+
+--- @param data NativePacker.Plugin.Data
 local function load(data)
   if data.loaded then
     return
@@ -502,7 +512,7 @@ local function load(data)
   end
   load_depend(data)
   Handler.clean(data)
-  vim.cmd.packadd(data.name)
+  packadd(data)
   if data.config then
     data.config()
   end
@@ -510,13 +520,12 @@ local function load(data)
 end
 
 --- @param data NativePacker.Plugin.Data
-local function packadd(data)
+local function register(data)
   M.plugin_spec_datas_by_short_src[data.repo or data.name] = data
   M.plugin_spec_datas_by_plugin_name[data.name] = data
-  Handler.register(data, load)
-  if not data.lazy then
+  Handler.register(data, function()
     load(data)
-  end
+  end)
 end
 
 local function on_pack_changed()
@@ -532,6 +541,14 @@ local function on_pack_changed()
   })
 end
 
+--- @param data NativePacker.Plugin.Data
+local function init(data)
+  register(data)
+  if not data.lazy then
+    load(data)
+  end
+end
+
 --- @param source NativePacker.Plugin
 function M.add(source)
   local specs = build_specs(source or {})
@@ -544,14 +561,14 @@ function M.add(source)
       local skipped_local_specs = skipped_local_spec_map[data.repo]
       if skipped_local_specs then
         for _, spec in ipairs(skipped_local_specs) do
-          packadd(spec.data)
+          init(spec.data)
         end
       end
-      packadd(data)
+      init(data)
       local remaining_local_specs = remain_local_spec_map[data.repo]
       if remaining_local_specs then
         for _, spec in ipairs(remaining_local_specs) do
-          packadd(spec.data)
+          init(spec.data)
         end
       end
     end,
@@ -564,6 +581,15 @@ function M.load(plugin_names)
     local data = M.plugin_spec_datas_by_plugin_name[name]
     if data then
       load(data)
+    end
+  end
+end
+
+function M.packadd(plugin_names)
+  for _, name in ipairs(plugin_names) do
+    local data = M.plugin_spec_datas_by_plugin_name[name]
+    if data then
+      packadd(data)
     end
   end
 end

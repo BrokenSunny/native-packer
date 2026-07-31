@@ -365,7 +365,6 @@ local function create_hook()
             for _, cb in ipairs(M.exclude_filetypes[filetype] or {}) do
               cb(ev.buf)
             end
-            return
           end
           for _, cb in ipairs(M.filetypes[filetype] or {}) do
             cb(ev.buf)
