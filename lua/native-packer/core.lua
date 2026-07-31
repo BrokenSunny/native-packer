@@ -13,6 +13,8 @@ M.plugin_spec_datas_by_short_src = {}
 --- @type table<string, NativePacker.Plugin.Data>
 M.plugin_spec_datas_by_plugin_name = {}
 
+local repo_plugin_keymaps = {}
+
 --- @class NativePacker.Plugin.Spec.Hooks
 --- @field config? fun()
 --- @field run? fun(data: vim.event.packchanged.data)
@@ -468,6 +470,8 @@ local function filter_repo_specs(specs)
         track(skipped_local_spec_map, spec.data.repo)
       end
       repo_specs[#repo_specs + 1] = spec
+      repo_plugin_keymaps[spec.data.repo] = spec.data.key
+      spec.data.key = nil
     end
     pre = spec
   end
@@ -558,6 +562,7 @@ function M.add(source)
     load = function(plug_data)
       local data = plug_data.spec.data
       data.name = plug_data.spec.name
+      data.key = remain_local_spec_map[data.repo]
       local skipped_local_specs = skipped_local_spec_map[data.repo]
       if skipped_local_specs then
         for _, spec in ipairs(skipped_local_specs) do
