@@ -562,7 +562,7 @@ function M.add(source)
     load = function(plug_data)
       local data = plug_data.spec.data
       data.name = plug_data.spec.name
-      data.key = remain_local_spec_map[data.repo]
+      data.key = repo_plugin_keymaps[data.repo]
       local skipped_local_specs = skipped_local_spec_map[data.repo]
       if skipped_local_specs then
         for _, spec in ipairs(skipped_local_specs) do
