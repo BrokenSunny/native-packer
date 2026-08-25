@@ -528,15 +528,6 @@ local function load(data)
   data.loaded = true
 end
 
---- @param data NativePacker.Plugin.Data
-local function register(data)
-  M.plugin_spec_datas_by_short_src[data.repo or data.name] = data
-  M.plugin_spec_datas_by_plugin_name[data.name] = data
-  Handler.register(data, function()
-    load(data)
-  end)
-end
-
 local function on_pack_changed()
   vim.api.nvim_create_autocmd("PackChanged", {
     pattern = "*",
@@ -552,9 +543,15 @@ end
 
 --- @param data NativePacker.Plugin.Data
 local function init(data)
-  register(data)
+  M.plugin_spec_datas_by_short_src[data.repo or data.name] = data
+  M.plugin_spec_datas_by_plugin_name[data.name] = data
   if not data.lazy then
+    require("native-packer.key").add(data.key)
     load(data)
+  else
+    Handler.register(data, function()
+      load(data)
+    end)
   end
 end
 

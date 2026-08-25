@@ -77,7 +77,7 @@ end
 --- @param data NativePacker.Plugin.Data
 function M.clean(data)
   for _, cmd in ipairs(data.cmd) do
-    vim.api.nvim_del_user_command(cmd)
+    pcall(vim.api.nvim_del_user_command, cmd)
   end
 end
 

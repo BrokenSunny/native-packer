@@ -23,10 +23,6 @@ end
 --- @param data NativePacker.Plugin.Data
 --- @param load fun()
 function M.register(data, load)
-  if not data.lazy then
-    require("native-packer.key").add(data.key)
-    return
-  end
   cmd.register(data, load)
   ft.register(data, load)
   colorscheme.register(data, load)
