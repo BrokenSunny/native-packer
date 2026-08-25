@@ -486,6 +486,9 @@ local function packadd(data)
   if data.packadded then
     return
   end
+  if data.before then
+    data.before()
+  end
   vim.cmd.packadd(data.name)
   data.packadded = true
 end
@@ -518,9 +521,6 @@ local function load(data)
   end
   load_depend(data)
   Handler.clean(data)
-  if data.before then
-    data.before()
-  end
   packadd(data)
   if data.config then
     data.config()

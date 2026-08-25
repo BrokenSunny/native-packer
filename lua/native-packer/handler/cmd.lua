@@ -63,8 +63,13 @@ function M.register(data, load)
       nargs = "*",
       complete = function(_, line)
         require("native-packer.core").packadd({ data.name })
+        local info = vim.api.nvim_get_commands({})[cmd] or vim.api.nvim_buf_get_commands(0, {})[cmd]
+        if vim.startswith(info.desc, "NativePacker") then
+          return {}
+        end
         return vim.fn.getcompletion(line, "cmdline")
       end,
+      desc = "NativePacker: " .. cmd,
     })
   end
 end
