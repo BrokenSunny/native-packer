@@ -9,28 +9,32 @@ function M.normalize(source)
   if type(source.run) == "function" or source.run == nil then
     hooks.run = source.run
   else
-    vim.api.nvim_echo(
+    vim.api.nvim_echo({
       {
-        {
-          "NativePackerWarn: [" .. plugin_name .. "].run expected function, but got " .. type(source.run) .. "\n",
-          "WarningMsg",
-        },
+        "NativePackerWarn: [" .. plugin_name .. "].run expected function, but got " .. type(source.run) .. "\n",
+        "WarningMsg",
       },
-      true
-    )
+    }, true)
   end
   if type(source.config) == "function" or source.config == nil then
     hooks.config = source.config
   else
-    vim.api.nvim_echo(
+    vim.api.nvim_echo({
       {
-        {
-          "NativePackerWarn: [" .. plugin_name .. "].config expected function, but got " .. type(source.config) .. "\n",
-          "WarningMsg",
-        },
+        "NativePackerWarn: [" .. plugin_name .. "].config expected function, but got " .. type(source.config) .. "\n",
+        "WarningMsg",
       },
-      true
-    )
+    }, true)
+  end
+  if type(source.before) == "function" or source.before == nil then
+    hooks.before = source.before
+  else
+    vim.api.nvim_echo({
+      {
+        "NativePackerWarn: [" .. plugin_name .. "].before expected function, but got " .. type(source.before) .. "\n",
+        "WarningMsg",
+      },
+    }, true)
   end
   return hooks
 end

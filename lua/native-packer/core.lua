@@ -18,9 +18,11 @@ local repo_plugin_keymaps = {}
 --- @class NativePacker.Plugin.Spec.Hooks
 --- @field config? fun()
 --- @field run? fun(data: vim.event.packchanged.data)
+--- @field before? fun()
 
 --- @class NativePacker.Plugin.Data.Hooks
 --- @field config? fun()
+--- @field before? fun()
 --- @field run? fun(data: vim.event.packchanged.data)
 
 --- @class NativePacker.Plugin.Spec.Event.Spec
@@ -516,6 +518,9 @@ local function load(data)
   end
   load_depend(data)
   Handler.clean(data)
+  if data.before then
+    data.before()
+  end
   packadd(data)
   if data.config then
     data.config()
