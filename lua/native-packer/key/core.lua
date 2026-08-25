@@ -2,10 +2,7 @@ local M = {
   keymaps = {},
   del_keymaps = {},
   filetypes = {},
-  exclude_filetypes = {
-    ["blink-cmp-menu"] = {},
-    ["fzf"] = {},
-  },
+  exclude_filetypes = {},
   --- @type table<string, fun()[]>
   events = {
     FileType = {},
@@ -14,6 +11,7 @@ local M = {
   autcmds = {},
 }
 local EVENT_GROUP_NAME = "NativePacker.key:event"
+local IGNORE_FILETYPES = { "blink-cmp-menu", "fzf" }
 
 -- stylua: ignore
 local KEYMAP_SET_OPTS = { noremap = true, nowait = true, silent = true, script = true, expr = true, unique = true, callback = true, desc = true, replace_keycodes = true, buf = true, remap = true, }
@@ -137,26 +135,19 @@ local function collect_keymap(lhs, rhs, mode, extra)
   M.keymaps[lhs][mode] = vim.tbl_extend("force", M.keymaps[lhs][mode], extra)
 end
 
---- @param where table
---- @param map table<string, fun()[]>
---- @param filetype any
---- @param callback fun(buffer: integer)
-local function collect_filetype_keymap(where, map, filetype, callback)
-  if type(filetype) ~= "table" then
-    filetype = { filetype }
+local function normalize_ft(where, field, ft)
+  if ft == nil then
+    return {}
   end
-
-  for _, ft in ipairs(filetype) do
-    if type(ft) == "string" then
-      map[ft] = map[ft] or {}
-      table.insert(map[ft], function(buf)
-        callback(buf)
-      end)
-    else
+  local filetypes = type(ft) == "table" and ft or { ft }
+  for _, f in ipairs(filetypes) do
+    if type(f) ~= "string" then
       vim.api.nvim_echo({
         {
-          "NativePackerError: native-packer.key.add(keymaps): keymaps[lhs].ft expected string, but got "
-            .. type(ft)
+          "NativePackerError: native-packer.key.add(keymaps): keymaps[lhs]."
+            .. field
+            .. " expected string, but got "
+            .. type(f)
             .. "\n",
           "ErrorMsg",
         },
@@ -166,12 +157,59 @@ local function collect_filetype_keymap(where, map, filetype, callback)
       }, true)
     end
   end
+  return filetypes
+end
+
+--- @param where table
+--- @param extra NativePacker.Key.Options
+--- @param callback fun(buf: integer)
+local function collect_filetype_keymap(where, extra, callback)
+  local _fts = normalize_ft(where, "ft", extra.ft)
+  local _exclude_fts = normalize_ft(where, "exclude_ft", extra.exclude_ft)
+  local fts = {}
+  local exclude_fts = {}
+  local conflict_fts = {}
+  for _, ft in ipairs(_fts) do
+    if vim.tbl_contains(_exclude_fts, ft) then
+      conflict_fts[ft] = true
+      vim.schedule(function()
+        vim.api.nvim_echo({
+          {
+            "NativePackerError: native-packer.key.add(keymaps): keymaps[lhs].ft and keymaps[lhs].exclude_ft specified the same ft: "
+              .. ft
+              .. ", this ft will be ignored!"
+              .. "\n",
+            "ErrorMsg",
+          },
+          {
+            "source: " .. vim.inspect(where) .. "\n",
+          },
+        }, true)
+      end)
+    else
+      table.insert(fts, ft)
+    end
+  end
+  for _, ft in ipairs(_exclude_fts) do
+    if not conflict_fts[ft] then
+      table.insert(exclude_fts, ft)
+    end
+  end
+  for _, ft in ipairs(fts) do
+    M.filetypes[ft] = M.filetypes[ft] or {}
+    table.insert(M.filetypes[ft], callback)
+  end
+  table.insert(M.exclude_filetypes, { callback = callback, filetypes = exclude_fts })
 end
 
 --- @param where table
 --- @param event any
 --- @param callback fun()
 local function collect_event_keymap(where, event, callback)
+  if event == nil then
+    return
+  end
+
   if type(event) ~= "table" then
     event = { event }
   end
@@ -253,31 +291,16 @@ end
 local function set_keymap(where, lhs, rhs, mode, opts, extra, set)
   set = set or _set
   collect_keymap(lhs, rhs, mode, extra)
-
-  if extra.ft then
-    collect_filetype_keymap(where, M.filetypes, extra.ft, function(buffer)
-      set(mode, lhs, rhs, vim.tbl_extend("force", opts, { buf = buffer }), extra)
-    end)
-    return
-  end
-
-  if extra.event then
-    collect_event_keymap(where, extra.event, function()
-      set(mode, lhs, rhs, opts, extra)
-    end)
-    return
-  end
-
-  if extra.exclude_ft then
-    collect_filetype_keymap(where, M.exclude_filetypes, extra.exclude_ft, function(buffer)
-      -- For excluded filetypes, we set the keymap to itself to effectively disable it in that buffer
-      _set(mode, lhs, lhs, { buf = buffer }, extra)
-    end)
+  if not extra.ft and not extra.event and not extra.exclude_ft then
     set(mode, lhs, rhs, opts, extra)
     return
   end
-
-  set(mode, lhs, rhs, opts, extra)
+  collect_filetype_keymap(where, extra, function(buf)
+    set(mode, lhs, rhs, vim.tbl_extend("force", opts, { buf = buf }), extra)
+  end)
+  collect_event_keymap(where, extra.event, function()
+    set(mode, lhs, rhs, opts, extra)
+  end)
 end
 
 --- @param where table
@@ -361,9 +384,9 @@ local function create_hook()
         opts.pattern = "*"
         opts.callback = function(ev)
           local filetype = vim.bo.filetype
-          if M.exclude_filetypes[filetype] then
-            for _, cb in ipairs(M.exclude_filetypes[filetype] or {}) do
-              cb(ev.buf)
+          for _, data in ipairs(M.exclude_filetypes) do
+            if not vim.tbl_contains(data.filetypes, filetype) and not vim.tbl_contains(IGNORE_FILETYPES, filetype) then
+              data.callback(ev.buf)
             end
           end
           for _, cb in ipairs(M.filetypes[filetype] or {}) do
