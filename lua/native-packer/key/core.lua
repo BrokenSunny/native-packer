@@ -199,7 +199,9 @@ local function collect_filetype_keymap(where, extra, callback)
     M.filetypes[ft] = M.filetypes[ft] or {}
     table.insert(M.filetypes[ft], callback)
   end
-  table.insert(M.exclude_filetypes, { callback = callback, filetypes = exclude_fts })
+  if #exclude_fts > 0 then
+    table.insert(M.exclude_filetypes, { callback = callback, filetypes = exclude_fts })
+  end
 end
 
 --- @param where table
@@ -295,7 +297,7 @@ local function set_keymap(where, lhs, rhs, mode, opts, extra, set)
     set(mode, lhs, rhs, opts, extra)
     return
   end
-  collect_filetype_keymap(where, extra, function(buf)
+  collect_filetype_keymap(where, extra, function(buf, sa)
     set(mode, lhs, rhs, vim.tbl_extend("force", opts, { buf = buf }), extra)
   end)
   collect_event_keymap(where, extra.event, function()
